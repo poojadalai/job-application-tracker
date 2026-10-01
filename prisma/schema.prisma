@@ -17,8 +17,11 @@ enum Status {
 
 model User {
   id           String        @id @default(uuid())
-  email        String        @unique
+  githubId     String        @unique
+  login        String
+  email        String?
   name         String?
+  image        String?
   createdAt    DateTime      @default(now())
   applications Application[]
 }
