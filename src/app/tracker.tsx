@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState, useTransition } from "react";
+import {
+  createApplication,
+  deleteApplication,
+  updateApplication,
+  updateApplicationStatus,
+} from "./actions";
 import {
   STATUSES,
-  addApplication,
-  deleteApplication,
-  getServerSnapshot,
-  getSnapshot,
-  subscribe,
-  updateApplication,
   type Application,
+  type ApplicationInput,
   type Status,
 } from "@/lib/applications";
 
@@ -25,29 +26,41 @@ const STATUS_STYLES: Record<Status, string> = {
 const inputClass =
   "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 
-type FormValues = Omit<Application, "id">;
-
-function emptyForm(): FormValues {
+function emptyForm(): ApplicationInput {
   return {
     company: "",
     role: "",
     status: "Applied",
-    dateApplied: new Date().toISOString().slice(0, 10),
+    appliedDate: new Date().toISOString().slice(0, 10),
+    jobDescription: "",
     link: "",
     notes: "",
   };
 }
 
-export default function Tracker() {
-  const applications = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot,
-  );
-  const [form, setForm] = useState<FormValues>(emptyForm);
+export default function Tracker({
+  applications,
+}: {
+  applications: Application[];
+}) {
+  const [form, setForm] = useState<ApplicationInput>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Status | "All">("All");
   const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function run(action: () => Promise<void>, onSuccess?: () => void) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await action();
+        onSuccess?.();
+      } catch {
+        setError("Couldn't save your change. Please try again.");
+      }
+    });
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -58,13 +71,16 @@ export default function Tracker() {
       link: form.link.trim(),
     };
     if (!values.company || !values.role) return;
-    if (editingId) {
-      updateApplication(editingId, values);
-    } else {
-      addApplication(values);
-    }
-    setForm(emptyForm());
-    setEditingId(null);
+    run(
+      () =>
+        editingId
+          ? updateApplication(editingId, values)
+          : createApplication(values),
+      () => {
+        setForm(emptyForm());
+        setEditingId(null);
+      },
+    );
   }
 
   function startEdit(app: Application) {
@@ -80,8 +96,12 @@ export default function Tracker() {
 
   function handleDelete(app: Application) {
     if (!confirm(`Delete ${app.role} at ${app.company}?`)) return;
-    deleteApplication(app.id);
-    if (editingId === app.id) cancelEdit();
+    run(
+      () => deleteApplication(app.id),
+      () => {
+        if (editingId === app.id) cancelEdit();
+      },
+    );
   }
 
   const query = search.trim().toLowerCase();
@@ -161,8 +181,8 @@ export default function Tracker() {
           <input
             type="date"
             className={inputClass}
-            value={form.dateApplied}
-            onChange={(e) => setForm({ ...form, dateApplied: e.target.value })}
+            value={form.appliedDate}
+            onChange={(e) => setForm({ ...form, appliedDate: e.target.value })}
           />
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
@@ -173,6 +193,17 @@ export default function Tracker() {
             className={inputClass}
             value={form.link}
             onChange={(e) => setForm({ ...form, link: e.target.value })}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+          Job description
+          <textarea
+            rows={4}
+            className={inputClass}
+            value={form.jobDescription}
+            onChange={(e) =>
+              setForm({ ...form, jobDescription: e.target.value })
+            }
           />
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
@@ -187,7 +218,8 @@ export default function Tracker() {
         <div className="flex gap-2 sm:col-span-2">
           <button
             type="submit"
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+            disabled={pending}
+            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
           >
             {editingId ? "Save changes" : "Add application"}
           </button>
@@ -201,6 +233,14 @@ export default function Tracker() {
             </button>
           )}
         </div>
+        {error && (
+          <p
+            role="alert"
+            className="text-sm text-red-700 sm:col-span-2 dark:text-red-400"
+          >
+            {error}
+          </p>
+        )}
       </form>
 
       <section className="flex flex-col gap-3">
@@ -234,7 +274,7 @@ export default function Tracker() {
                   <div className="font-semibold">{app.role}</div>
                   <div className="text-sm text-zinc-600 dark:text-zinc-400">
                     {app.company}
-                    {app.dateApplied && ` · ${app.dateApplied}`}
+                    {app.appliedDate && ` · ${app.appliedDate}`}
                   </div>
                   {app.link && (
                     <a
@@ -246,6 +286,16 @@ export default function Tracker() {
                       Job posting
                     </a>
                   )}
+                  {app.jobDescription && (
+                    <details className="text-sm">
+                      <summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">
+                        Job description
+                      </summary>
+                      <p className="mt-1 whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
+                        {app.jobDescription}
+                      </p>
+                    </details>
+                  )}
                   {app.notes && (
                     <p className="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
                       {app.notes}
@@ -256,11 +306,11 @@ export default function Tracker() {
                   <select
                     aria-label="Status"
                     value={app.status}
-                    onChange={(e) =>
-                      updateApplication(app.id, {
-                        status: e.target.value as Status,
-                      })
-                    }
+                    disabled={pending}
+                    onChange={(e) => {
+                      const status = e.target.value as Status;
+                      run(() => updateApplicationStatus(app.id, status));
+                    }}
                     className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLES[app.status]}`}
                   >
                     {STATUSES.map((status) => (
@@ -276,6 +326,7 @@ export default function Tracker() {
                   </button>
                   <button
                     type="button"
+                    disabled={pending}
                     onClick={() => handleDelete(app)}
                     className="rounded-md border border-red-300 px-3 py-1 text-xs text-red-700 dark:border-red-900 dark:text-red-400"
                   >
