@@ -34,6 +34,7 @@ function parseInput(input: ApplicationInput) {
     status: parseStatus(input.status),
     appliedDate: parseDate(input.appliedDate),
     jobDescription: text(input.jobDescription, 20000),
+    nextStep: text(input.nextStep, 200),
     link: text(input.link, 2000),
     notes: text(input.notes, 10000),
   };
