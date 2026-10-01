@@ -8,8 +8,8 @@ datasource db {
 }
 
 enum Status {
-  Wishlist
   Applied
+  Screening
   Interview
   Offer
   Rejected
@@ -30,6 +30,7 @@ model Application {
   status         Status    @default(Applied)
   appliedDate    DateTime? @db.Date
   jobDescription String    @default("")
+  nextStep       String    @default("")
   link           String    @default("")
   notes          String    @default("")
   createdAt      DateTime  @default(now())

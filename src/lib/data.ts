@@ -15,6 +15,7 @@ export async function listApplications(): Promise<Application[]> {
     status: row.status,
     appliedDate: row.appliedDate?.toISOString().slice(0, 10) ?? "",
     jobDescription: row.jobDescription,
+    nextStep: row.nextStep,
     link: row.link,
     notes: row.notes,
   }));

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
+import Board from "./board";
 import {
   createApplication,
   deleteApplication,
@@ -9,19 +10,12 @@ import {
 } from "./actions";
 import {
   STATUSES,
+  STATUS_STYLES,
   type Application,
   type ApplicationInput,
   type Status,
 } from "@/lib/applications";
-
-const STATUS_STYLES: Record<Status, string> = {
-  Wishlist: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  Applied: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300",
-  Interview:
-    "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  Offer: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300",
-  Rejected: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
-};
+import { useBoardStore } from "@/lib/board-store";
 
 const inputClass =
   "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -33,16 +27,27 @@ function emptyForm(): ApplicationInput {
     status: "Applied",
     appliedDate: new Date().toISOString().slice(0, 10),
     jobDescription: "",
+    nextStep: "",
     link: "",
     notes: "",
   };
 }
 
 export default function Tracker({
-  applications,
+  applications: savedApplications,
 }: {
   applications: Application[];
 }) {
+  // Status changes show immediately and settle once the server responds.
+  const [applications, setOptimisticStatus] = useOptimistic(
+    savedApplications,
+    (apps, { id, status }: { id: string; status: Status }) =>
+      apps.map((app) => (app.id === id ? { ...app, status } : app)),
+  );
+  const view = useBoardStore((s) => s.view);
+  const setView = useBoardStore((s) => s.setView);
+  const columnOrder = useBoardStore((s) => s.columnOrder);
+  const formRef = useRef<HTMLFormElement>(null);
   const [form, setForm] = useState<ApplicationInput>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Status | "All">("All");
@@ -62,12 +67,20 @@ export default function Tracker({
     });
   }
 
+  function changeStatus(id: string, status: Status) {
+    run(async () => {
+      setOptimisticStatus({ id, status });
+      await updateApplicationStatus(id, status);
+    });
+  }
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const values = {
       ...form,
       company: form.company.trim(),
       role: form.role.trim(),
+      nextStep: form.nextStep.trim(),
       link: form.link.trim(),
     };
     if (!values.company || !values.role) return;
@@ -87,6 +100,7 @@ export default function Tracker({
     const { id, ...values } = app;
     setEditingId(id);
     setForm(values);
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function cancelEdit() {
@@ -138,6 +152,7 @@ export default function Tracker({
       </section>
 
       <form
+        ref={formRef}
         onSubmit={handleSubmit}
         className="grid gap-3 rounded-lg border border-zinc-200 p-4 sm:grid-cols-2 dark:border-zinc-800"
       >
@@ -183,6 +198,16 @@ export default function Tracker({
             className={inputClass}
             value={form.appliedDate}
             onChange={(e) => setForm({ ...form, appliedDate: e.target.value })}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+          Next step
+          <input
+            maxLength={200}
+            placeholder="e.g. Awaiting response, Technical interview May 2"
+            className={inputClass}
+            value={form.nextStep}
+            onChange={(e) => setForm({ ...form, nextStep: e.target.value })}
           />
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
@@ -248,16 +273,52 @@ export default function Tracker({
           <h2 className="text-lg font-semibold">
             {filter === "All" ? "All applications" : filter} ({visible.length})
           </h2>
-          <input
-            type="search"
-            placeholder="Search company or role"
-            className={`${inputClass} sm:w-64`}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <div
+              role="group"
+              aria-label="View"
+              className="flex rounded-md border border-zinc-300 p-0.5 text-sm dark:border-zinc-700"
+            >
+              {(["board", "list"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={view === option}
+                  onClick={() => setView(option)}
+                  className={`rounded px-3 py-1 capitalize ${
+                    view === option
+                      ? "bg-foreground text-background"
+                      : "text-zinc-600 dark:text-zinc-400"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            <input
+              type="search"
+              placeholder="Search company or role"
+              className={`${inputClass} sm:w-64`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
-        {visible.length === 0 ? (
+        {view === "board" ? (
+          <Board
+            applications={visible}
+            columns={
+              filter === "All"
+                ? columnOrder
+                : columnOrder.filter((s) => s === filter)
+            }
+            onMove={changeStatus}
+            onEdit={startEdit}
+            onDelete={handleDelete}
+            deleteDisabled={pending}
+          />
+        ) : visible.length === 0 ? (
           <p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
             {applications.length === 0
               ? "No applications yet. Add your first one above."
@@ -276,6 +337,11 @@ export default function Tracker({
                     {app.company}
                     {app.appliedDate && ` · ${app.appliedDate}`}
                   </div>
+                  {app.nextStep && (
+                    <div className="text-sm text-zinc-700 dark:text-zinc-300">
+                      Next: {app.nextStep}
+                    </div>
+                  )}
                   {app.link && (
                     <a
                       href={app.link}
@@ -306,11 +372,9 @@ export default function Tracker({
                   <select
                     aria-label="Status"
                     value={app.status}
-                    disabled={pending}
-                    onChange={(e) => {
-                      const status = e.target.value as Status;
-                      run(() => updateApplicationStatus(app.id, status));
-                    }}
+                    onChange={(e) =>
+                      changeStatus(app.id, e.target.value as Status)
+                    }
                     className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLES[app.status]}`}
                   >
                     {STATUSES.map((status) => (
