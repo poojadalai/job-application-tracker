@@ -1,11 +1,11 @@
-import { connection } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUserId } from "@/lib/session";
 import type { Application } from "@/lib/applications";
 
 export async function listApplications(): Promise<Application[]> {
-  // Read from the database on every request instead of at build time.
-  await connection();
+  const userId = await requireUserId();
   const rows = await prisma.application.findMany({
+    where: { userId },
     orderBy: { createdAt: "desc" },
   });
   return rows.map((row) => ({
