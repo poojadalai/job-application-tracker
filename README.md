@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Job Application Tracker
 
-## Getting Started
+A private Kanban board for your job search: every application, its status and your next step in one place, behind GitHub sign-in.
 
-First, run the development server:
+[![CI](https://github.com/poojadalai/job-application-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/poojadalai/job-application-tracker/actions/workflows/ci.yml)
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+
+**[Live demo →](https://job-application-tracker-sigma-nine.vercel.app)**
+Sign in with your GitHub account. Your board starts empty and is visible only to you.
+
+## Screenshots
+
+<!-- Drop files into docs/ and uncomment. -->
+<!--
+![Kanban board with drag-and-drop](docs/board.gif)
+
+| Board view | List view |
+|---|---|
+| ![Board view](docs/board.png) | ![List view](docs/list.png) |
+-->
+
+## Features
+
+- **Kanban board.** Drag applications between Applied → Screening → Interview → Offer → Rejected. Columns can be reordered for the current session.
+- **Keyboard-accessible drag-and-drop.** Arrow keys move a card a whole column at a time, and screen readers announce each move.
+- **Optimistic updates.** A status change shows instantly and settles once the server confirms it. If the save fails, you see an error.
+- **List view** with inline status changes, as an alternative to the board.
+- **Add, edit and delete** applications: company, role, date applied, next step, job posting link, job description and notes.
+- **Search** by company or role, and **filter** by status using clickable count tiles.
+- **GitHub sign-in.** Each user sees and changes only their own applications.
+- **Dark mode**, following the system setting.
+- **CI on every pull request and push to main:** lint, type-check and production build.
+
+**Planned:** an AI job-fit analyzer and a stats/insights view (see [Roadmap](#roadmap)).
+
+## Tech stack
+
+| Area | Choice | Why |
+|---|---|---|
+| Framework | Next.js 16 (App Router, Server Components, Server Actions) | Server rendering and data mutations live in one typed codebase, with no separate API to maintain. |
+| Language | TypeScript | Types run end to end, from the Prisma models to the React props. |
+| Styling | Tailwind CSS 4 | Fast, consistent styling with built-in dark mode and no CSS files to keep in sync. |
+| Database | PostgreSQL (Neon) via Prisma 7 | Relational data with type-safe queries and versioned migrations. |
+| Auth | Auth.js (NextAuth v5) with GitHub OAuth | The audience is developers, so GitHub sign-in is low-friction and means no passwords to store. |
+| Client state | Zustand | A small store for UI-only state (current view, column order, drag state), kept separate from server data. |
+| Drag and drop | dnd-kit | Supports keyboard and screen readers out of the box, which most drag-and-drop libraries don't. |
+| Hosting / CI | Vercel and GitHub Actions | Preview deploys for every PR, plus an independent lint, type-check and build gate. |
+
+## Architecture & decisions
+
+**Server Actions instead of a REST layer.** The page is a Server Component that reads the signed-in user's applications directly from the database. Mutations (`create`, `update`, `updateStatus`, `delete`) are Server Actions in [`src/app/actions.ts`](src/app/actions.ts) that the client calls like typed functions, then `refresh()` the page. That removes a layer of route handlers, fetch wrappers and duplicated request types. The trade-off is that Server Actions are still public POST endpoints, so every input is validated again on the server (required fields, status enum, date format, length limits) and nothing from the client is trusted.
+
+**Data model.** There are two tables. A `User` is created or updated from the GitHub profile on sign-in. An `Application` has a `status` enum, an optional applied date, a free-text next step, a link, the job description and notes. Each application belongs to one user (`userId`, indexed), and deleting a user also deletes their applications. Interview stages are currently modelled as statuses; a dedicated `Interview` model is on the roadmap.
+
+**How per-user data is protected.** Every query and mutation first calls `requireUserId()`, which reads the session and throws if there isn't one. Writes use `updateMany` / `deleteMany` filtered by both `id` and `userId`. If someone sends another user's application ID, the query simply matches nothing and fails like a missing record. That rules out insecure direct object references without an extra read just to check ownership.
+
+**Problems solved and trade-offs**
+
+- **Adding auth to an app that already had data.** Applications created before sign-in existed had no owner. `userId` is nullable, and on first sign-in the GitHub account named in `CLAIM_UNOWNED_GITHUB_LOGIN` takes ownership of those rows. Existing data was migrated without a manual script.
+- **Changing an enum without losing data.** Replacing the `Wishlist` status with `Screening` needed a hand-edited migration: move the affected rows to `Applied` first, then swap the Postgres enum inside a transaction.
+- **JWT sessions over database sessions.** This keeps the schema to two tables and avoids a DB lookup on every request. The trade-off is that a session can't be revoked server-side before it expires.
+
+## Run locally
+
+**Prerequisites:** Node 24 (see `.nvmrc`), a PostgreSQL database (a free [Neon](https://neon.tech) project works), and a [GitHub OAuth app](https://github.com/settings/developers) with the callback URL `http://localhost:3000/api/auth/callback/github`.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/poojadalai/job-application-tracker.git
+cd job-application-tracker
+
+# 1. Configure env vars first; `npm ci` runs `prisma generate`, which needs DATABASE_URL
+cp .env.example .env        # then fill in the values
+
+# 2. Install, create the tables, start the dev server
+npm ci
+npx prisma migrate dev
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string |
+| `AUTH_SECRET` | Session encryption key; generate one with `npx auth secret` |
+| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | GitHub OAuth app credentials |
+| `CLAIM_UNOWNED_GITHUB_LOGIN` | Optional. GitHub login that takes ownership of applications created before auth existed |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Checks run in CI: `npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Roadmap
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [ ] Unit tests (Vitest) and end-to-end tests (Playwright) in CI
+- [ ] AI job-fit analyzer: compare a saved job description against your profile and highlight gaps
+- [ ] Stats view: applications over time, response rate, time in each stage
+- [ ] `Interview` model: multiple rounds per application, with dates and outcomes
+- [ ] Persist board preferences (column order, view) per user
