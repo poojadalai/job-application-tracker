@@ -33,8 +33,8 @@ Data	Prisma 7 + Postgres (Neon)	TS-first ORM	Yes, via @prisma/adapter-pg; models
 Auth	Auth.js v5 (next-auth beta), GitHub provider, JWT sessions	Not on my CV yet	Yes
 Validation	Hand-written checks in src/app/actions.ts		Zod is not installed (section 6 mentions it as an example)
 AI	Vercel AI SDK	Modern streamed-LLM pattern	Not installed (planned, #7)
-Unit/component tests	Vitest + React Testing Library		Not installed (planned, #9)
-E2E tests	Playwright		Not installed (planned, #9)
+Unit/component tests	Vitest + React Testing Library		Yes (tests/unit, tests/integration; vitest.config.mts)
+E2E tests	Playwright (Chromium)		Yes (e2e/, playwright.config.ts)
 CI/CD	GitHub Actions + Vercel		Yes
 
 Before adding Zustand or TanStack Query to any feature, check whether Server Components/Server Actions already solve it. Only use them where there is a real client-side need, and tell me why. (Optimistic drag-and-drop is already handled by useOptimistic, not by either library.)
@@ -46,11 +46,10 @@ Before adding Zustand or TanStack Query to any feature, check whether Server Com
 Last verified: 2026-10-05.
 
 Done (issues closed): Prisma schema + Postgres (#2), Next.js scaffold + GitHub + Vercel deploy (#3), Application CRUD via Server Actions (#4), Kanban board with drag-and-drop (#5), GitHub OAuth auth (#6)
-#1 part 1 done: GitHub Actions CI merged via PR #10. Vercel Production and Preview deployments both build.
-In progress: #1 part 2, the README/case study and .env.example (branch docs/readme-and-context). Close #1 when this merges.
-Not built yet: Interview model, AI analyzer, stats view, tests. No LICENSE file.
+#1 done: GitHub Actions CI (PR #10) and README/case study + .env.example (PR #11). Vercel Production and Preview deployments both build.
+In progress: #9 Vitest + Playwright tests wired into CI (branch test/vitest-playwright). After merge: make the CI check required on main.
+Not built yet: Interview model, AI analyzer, stats view. No LICENSE file.
 Backlog, in suggested order:
-#9 Vitest + Playwright tests, then wire them into the CI placeholder step
 #7 AI job-fit analyzer (Vercel AI SDK, streamed)
 #8 Stats view
 Optional extras: Google as a second OAuth provider (needs Google Cloud credentials), branch protection on main once tests exist, a LICENSE file (MIT?), screenshots/GIF for the README, persisting board preferences (column order, view) per user
@@ -65,7 +64,10 @@ Vercel env vars: Production and Preview are separate entries. DATABASE_URL, AUTH
 Vercel Deployment Protection ("Vercel Authentication") must stay OFF so the public site is reachable without a Vercel login.
 GitHub sign-in only works on the production URL. The OAuth app has the production callback URL only, so sign-in on preview deployments is expected to fail. Previews only need to build.
 CLAIM_UNOWNED_GITHUB_LOGIN is read only at sign-in time (not needed for builds or CI).
-CI (.github/workflows/ci.yml): runs on push to main and on PRs: checkout, setup-node (from .nvmrc, npm cache), npm ci, prisma generate, lint, next typegen, tsc --noEmit, next build, with placeholder env vars (no real secrets), a concurrency group that cancels outdated runs, read-only permissions, and a commented TODO(#9) block for tests. Tests that need a database should use a throwaway Postgres service container, never the live Neon database.
+CI (.github/workflows/ci.yml): runs on push to main and on PRs: checkout, setup-node (from .nvmrc, npm cache), npm ci, prisma generate, lint, next typegen, tsc --noEmit, next build, with placeholder env vars (no real secrets), a concurrency group that cancels outdated runs, read-only permissions, then unit tests, integration tests and Playwright e2e against a postgres:17 service container (TEST_DATABASE_URL). Tests never use the live Neon database.
+Tests: integration and e2e tests read TEST_DATABASE_URL (locally from .env.test.local, pointing at a Neon "test" branch since there is no Docker on the dev machine). tests/test-db.mjs refuses a URL on the same Neon endpoint as .env DATABASE_URL, and CI only allows localhost. Each test creates and deletes its own users. Run `npm run test:db:migrate` after new migrations.
+E2E sign-in: e2e/fixtures.ts mints an Auth.js session cookie (authjs.session-token, encode() from next-auth/jwt) with a test-only AUTH_SECRET that playwright.config.ts passes to the app. There is no test login route in the app; keep it that way.
+Server Action validation lives in src/lib/validation.ts (a "use server" file may only export async functions, so helpers cannot be exported from actions.ts).
 6. Working rules
 
 Workflow

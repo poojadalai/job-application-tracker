@@ -15,9 +15,26 @@ permissions:
 
 jobs:
   ci:
-    name: Lint, type-check & build
+    name: Lint, type-check, build & test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+
+    # Throwaway database for integration and e2e tests. It only exists for
+    # this job, so tests never touch Neon.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: tracker_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d tracker_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     # Placeholder values only — nothing here connects to a real database or
     # GitHub OAuth app. They exist so prisma.config.ts, Auth.js and
@@ -29,6 +46,8 @@ jobs:
       AUTH_GITHUB_ID: ci-placeholder-github-id
       AUTH_GITHUB_SECRET: ci-placeholder-github-secret
       NEXT_TELEMETRY_DISABLED: 1
+      # Used only by the test steps (see tests/test-db.mjs).
+      TEST_DATABASE_URL: postgresql://test:test@localhost:5432/tracker_test
 
     steps:
       - name: Checkout
@@ -57,6 +76,9 @@ jobs:
       - name: Type-check
         run: npx tsc --noEmit
 
+      - name: Unit and component tests
+        run: npm test
+
       - name: Cache Next.js build
         uses: actions/cache@v4
         with:
@@ -68,14 +90,24 @@ jobs:
       - name: Build
         run: npm run build
 
-      # TODO(#9): add unit and end-to-end tests here once Vitest and Playwright
-      # are set up. Expected shape:
-      #
-      # - name: Unit tests
-      #   run: npm run test -- --run
-      #
-      # - name: Install Playwright browsers
-      #   run: npx playwright install --with-deps
-      #
-      # - name: E2E tests
-      #   run: npm run test:e2e
+      - name: Apply migrations to the test database
+        run: npm run test:db:migrate
+
+      - name: Integration tests (data isolation)
+        run: npm run test:integration
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

@@ -30,7 +30,7 @@ Sign in with your GitHub account. Your board starts empty and is visible only to
 - **Search** by company or role, and **filter** by status using clickable count tiles.
 - **GitHub sign-in.** Each user sees and changes only their own applications.
 - **Dark mode**, following the system setting.
-- **CI on every pull request and push to main:** lint, type-check and production build.
+- **Tested:** unit and component tests (Vitest + React Testing Library), integration tests that prove per-user data isolation against a real Postgres database, and Playwright end-to-end tests. All of them run in CI on every pull request and push to main.
 
 **Planned:** an AI job-fit analyzer and a stats/insights view (see [Roadmap](#roadmap)).
 
@@ -45,7 +45,8 @@ Sign in with your GitHub account. Your board starts empty and is visible only to
 | Auth | Auth.js (NextAuth v5) with GitHub OAuth | The audience is developers, so GitHub sign-in is low-friction and means no passwords to store. |
 | Client state | Zustand | A small store for UI-only state (current view, column order, drag state), kept separate from server data. |
 | Drag and drop | dnd-kit | Supports keyboard and screen readers out of the box, which most drag-and-drop libraries don't. |
-| Hosting / CI | Vercel and GitHub Actions | Preview deploys for every PR, plus an independent lint, type-check and build gate. |
+| Testing | Vitest, React Testing Library, Playwright | Fast unit and component tests, plus real-browser tests of the core flows. |
+| Hosting / CI | Vercel and GitHub Actions | Preview deploys for every PR, plus a lint, type-check, build and test gate with a throwaway Postgres. |
 
 ## Architecture & decisions
 
@@ -85,11 +86,27 @@ npm run dev                 # http://localhost:3000
 | `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | GitHub OAuth app credentials |
 | `CLAIM_UNOWNED_GITHUB_LOGIN` | Optional. GitHub login that takes ownership of applications created before auth existed |
 
-Checks run in CI: `npm run lint`, `npx next typegen && npx tsc --noEmit`, `npm run build`.
+## Testing
+
+| Command | What it runs | Needs a database? |
+|---|---|---|
+| `npm test` | Unit and component tests: validation, session guard, board store, the Tracker UI | No |
+| `npm run test:integration` | The real Server Actions against Postgres, proving users can't read, edit, move or delete each other's applications | Yes |
+| `npm run test:e2e` | Playwright (Chromium): add, move by keyboard, edit, delete, and a two-user isolation check | Yes |
+
+**Test database.** Integration and e2e tests never use `DATABASE_URL`. They read `TEST_DATABASE_URL` from `.env.test.local` and refuse to run if it points at the same database as `.env`. Each test creates its own users and deletes them afterwards. In CI, a Postgres service container is used instead.
+
+```bash
+npm run test:db:migrate            # once, and again after new migrations
+npx playwright install chromium    # once
+```
+
+**Sign-in in e2e tests.** Tests don't go through GitHub. A fixture creates a test user in the test database and sets the same encrypted session cookie Auth.js would set after OAuth, signed with a test-only `AUTH_SECRET` that the app under test is started with. The app has no test-only login route.
+
+CI runs: lint → `next typegen` + `tsc` → unit tests → build → integration tests → e2e tests.
 
 ## Roadmap
 
-- [ ] Unit tests (Vitest) and end-to-end tests (Playwright) in CI
 - [ ] AI job-fit analyzer: compare a saved job description against your profile and highlight gaps
 - [ ] Stats view: applications over time, response rate, time in each stage
 - [ ] `Interview` model: multiple rounds per application, with dates and outcomes
