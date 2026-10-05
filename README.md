@@ -28,11 +28,12 @@ Sign in with your GitHub account. Your board starts empty and is visible only to
 - **List view** with inline status changes, as an alternative to the board.
 - **Add, edit and delete** applications: company, role, date applied, next step, job posting link, job description and notes.
 - **Search** by company or role, and **filter** by status using clickable count tiles.
+- **Stats page.** Applications this week, response rate, and a bar chart of applications by current stage, with empty states. Counted in Postgres for the signed-in user only.
 - **GitHub sign-in.** Each user sees and changes only their own applications.
 - **Dark mode**, following the system setting.
 - **Tested:** unit and component tests (Vitest + React Testing Library), integration tests that prove per-user data isolation against a real Postgres database, and Playwright end-to-end tests. All of them run in CI on every pull request and push to main.
 
-**Planned:** an AI job-fit analyzer and a stats/insights view (see [Roadmap](#roadmap)).
+**Planned:** an AI job-fit analyzer (see [Roadmap](#roadmap)).
 
 ## Tech stack
 
@@ -55,6 +56,8 @@ Sign in with your GitHub account. Your board starts empty and is visible only to
 **Data model.** There are two tables. A `User` is created or updated from the GitHub profile on sign-in. An `Application` has a `status` enum, an optional applied date, a free-text next step, a link, the job description and notes. Each application belongs to one user (`userId`, indexed), and deleting a user also deletes their applications. Interview stages are currently modelled as statuses; a dedicated `Interview` model is on the roadmap.
 
 **How per-user data is protected.** Every query and mutation first calls `requireUserId()`, which reads the session and throws if there isn't one. Writes use `updateMany` / `deleteMany` filtered by both `id` and `userId`. If someone sends another user's application ID, the query simply matches nothing and fails like a missing record. That rules out insecure direct object references without an extra read just to check ownership.
+
+**Stats are aggregated on the server.** The `/stats` page is a Server Component that runs a Prisma `groupBy` on status and a `count` for this week, both filtered by `userId`, so only totals reach the browser and no chart library is needed (the bars are plain HTML/CSS with the numbers as text). Definitions: *this week* is Monday to Sunday on UTC dates, by applied date; a *response* is any application that has moved past Applied, rejections included. There is no status history yet, so the chart shows each application's **current** stage rather than a true conversion funnel; that would need a status-change table.
 
 **Problems solved and trade-offs**
 
@@ -108,6 +111,7 @@ CI runs: lint → `next typegen` + `tsc` → unit tests → build → integratio
 ## Roadmap
 
 - [ ] AI job-fit analyzer: compare a saved job description against your profile and highlight gaps
-- [ ] Stats view: applications over time, response rate, time in each stage
+- [x] Stats view: this-week count, response rate, applications by current stage
+- [ ] Status history: a true conversion funnel and time spent in each stage
 - [ ] `Interview` model: multiple rounds per application, with dates and outcomes
 - [ ] Persist board preferences (column order, view) per user

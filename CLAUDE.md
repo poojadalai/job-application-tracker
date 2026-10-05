@@ -47,11 +47,11 @@ Last verified: 2026-10-05.
 
 Done (issues closed): Prisma schema + Postgres (#2), Next.js scaffold + GitHub + Vercel deploy (#3), Application CRUD via Server Actions (#4), Kanban board with drag-and-drop (#5), GitHub OAuth auth (#6)
 #1 done: GitHub Actions CI (PR #10) and README/case study + .env.example (PR #11). Vercel Production and Preview deployments both build.
-In progress: #9 Vitest + Playwright tests wired into CI (branch test/vitest-playwright). After merge: make the CI check required on main.
-Not built yet: Interview model, AI analyzer, stats view. No LICENSE file.
+#9 done: Vitest + Playwright tests in CI (PR #12). Still to do: make the CI check required on main.
+In progress: #8 Stats view (branch feat/stats-view): /stats Server Component page, logic in src/lib/stats.ts, query getStats() in src/lib/data.ts. No migration.
+Not built yet: Interview model, AI analyzer, status history (needed for a true funnel / time in stage). No LICENSE file.
 Backlog, in suggested order:
 #7 AI job-fit analyzer (Vercel AI SDK, streamed)
-#8 Stats view
 Optional extras: Google as a second OAuth provider (needs Google Cloud credentials), branch protection on main once tests exist, a LICENSE file (MIT?), screenshots/GIF for the README, persisting board preferences (column order, view) per user
 Done extras: a separate Neon branch for preview deployments (Preview DATABASE_URL points to the Neon "preview" branch, not production)
 5. Project facts and gotchas (hard-won; do not relearn)
