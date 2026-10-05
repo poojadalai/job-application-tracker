@@ -1,5 +1,6 @@
-import { auth, signIn, signOut } from "@/auth";
+import { auth, signIn } from "@/auth";
 import { listApplications } from "@/lib/data";
+import SiteHeader from "./site-header";
 import Tracker from "./tracker";
 
 const buttonClass =
@@ -11,45 +12,7 @@ export default async function Home() {
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10 font-sans">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Job Application Tracker
-          </h1>
-          <p className="text-zinc-600 dark:text-zinc-400">
-            Keep track of every application and where it stands.
-          </p>
-        </div>
-        {user && (
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/" });
-            }}
-            className="flex items-center gap-3"
-          >
-            {user.image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.image}
-                alt=""
-                width={32}
-                height={32}
-                className="rounded-full"
-              />
-            )}
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">
-              {user.name ?? user.email}
-            </span>
-            <button
-              type="submit"
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-            >
-              Sign out
-            </button>
-          </form>
-        )}
-      </header>
+      <SiteHeader user={user} current="/" />
       {user?.id ? (
         <Tracker applications={await listApplications()} />
       ) : (
