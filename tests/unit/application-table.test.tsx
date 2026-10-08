@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import ApplicationTable from "@/app/application-table";
 import type { Application } from "@/lib/applications";
 
@@ -41,7 +41,9 @@ function renderTable(applications: Application[], resetKey = "All|") {
 const bodyRows = () => screen.getAllByRole("row").slice(1);
 const companies = () =>
   bodyRows().map((row) => within(row).getAllByRole("cell")[0].textContent);
-const pageInfo = () => within(screen.getByRole("navigation", { name: "Pagination" })).getByText(/Page/);
+const shownText = () => screen.getByText(/^Showing/);
+const showMore = (count: number) =>
+  screen.getByRole("button", { name: `Show ${count} more applications` });
 const header = (name: string) => screen.getByRole("columnheader", { name: new RegExp(name) });
 
 describe("ApplicationTable sorting", () => {
@@ -82,64 +84,67 @@ describe("ApplicationTable sorting", () => {
   });
 });
 
-describe("ApplicationTable pagination", () => {
-  it("shows 20 rows per page", async () => {
+describe("ApplicationTable Show more", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows 20 rows before the screen is measured, then the rest on Show more", async () => {
     const user = userEvent.setup();
     renderTable(many(25));
 
     expect(bodyRows()).toHaveLength(20);
-    expect(pageInfo()).toHaveTextContent("1–20 of 25 · Page 1 of 2");
-    expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+    expect(shownText()).toHaveTextContent("Showing 20 of 25");
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    expect(bodyRows()).toHaveLength(5);
-    expect(pageInfo()).toHaveTextContent("21–25 of 25 · Page 2 of 2");
-    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+    await user.click(showMore(5));
+    expect(bodyRows()).toHaveLength(25);
+    expect(shownText()).toHaveTextContent("Showing 25 of 25");
+    expect(screen.queryByRole("button", { name: /Show d+ more/ })).not.toBeInTheDocument();
   });
 
-  it("changes page size and goes back to page 1", async () => {
+  it("shows as many rows as fit on screen, then a screenful more per click", async () => {
+    // jsdom has no layout, so fake one: 50px rows, the table body starting
+    // 300px down, in jsdom's default 768px-high window.
+    // (768 - 300 - 64) / 50 = 8.08, so 8 rows fit.
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      return { top: this.tagName === "TBODY" ? 300 : 0, height: this.tagName === "TR" ? 50 : 0 } as DOMRect;
+    });
     const user = userEvent.setup();
     renderTable(many(25));
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.selectOptions(screen.getByLabelText("Rows per page"), "10");
-
-    expect(bodyRows()).toHaveLength(10);
-    expect(pageInfo()).toHaveTextContent("Page 1 of 3");
+    expect(bodyRows()).toHaveLength(8);
+    await user.click(showMore(8));
+    expect(bodyRows()).toHaveLength(16);
   });
 
-  it("goes back to page 1 when sorting changes", async () => {
+  it("has no Show more button when everything fits", () => {
+    renderTable(many(5));
+    expect(shownText()).toHaveTextContent("Showing 5 of 5");
+    expect(screen.queryByRole("button", { name: /Show d+ more/ })).not.toBeInTheDocument();
+  });
+
+  it("goes back to the first rows when sorting changes", async () => {
     const user = userEvent.setup();
     renderTable(many(25));
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(showMore(5));
     await user.click(screen.getByRole("button", { name: "Company" }));
 
-    expect(pageInfo()).toHaveTextContent("Page 1 of 2");
+    expect(bodyRows()).toHaveLength(20);
   });
 
-  it("keeps the page when a status changes, but resets when search or filter changes", async () => {
+  it("keeps the rows shown when a status changes, but resets when search or filter changes", async () => {
     const user = userEvent.setup();
     const apps = many(25);
     const { rerender } = renderTable(apps);
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(showMore(5));
 
     rerender(apps.map((app) => (app.id === "a1" ? { ...app, status: "Offer" } : app)));
-    expect(pageInfo()).toHaveTextContent("Page 2 of 2");
+    expect(bodyRows()).toHaveLength(25);
 
     rerender(apps, "All|acme");
-    expect(pageInfo()).toHaveTextContent("Page 1 of 2");
-  });
-
-  it("moves to the new last page when rows are removed", async () => {
-    const user = userEvent.setup();
-    const apps = many(25);
-    const { rerender } = renderTable(apps);
-    await user.click(screen.getByRole("button", { name: "Next" }));
-
-    rerender(apps.slice(0, 20));
-
-    expect(pageInfo()).toHaveTextContent("1–20 of 20 · Page 1 of 1");
     expect(bodyRows()).toHaveLength(20);
   });
 });

@@ -25,7 +25,7 @@ Sign in with your GitHub account. Your board starts empty and is visible only to
 - **Kanban board.** Drag applications between Applied → Screening → Interview → Offer → Rejected. Columns can be reordered for the current session, and long columns show as many cards as fit on screen, with a "Show more" button right below.
 - **Keyboard-accessible drag-and-drop.** Arrow keys move a card a whole column at a time, and screen readers announce each move.
 - **Optimistic updates.** A status change shows instantly and settles once the server confirms it. If the save fails, you see an error.
-- **List view** as a sortable, paginated table: sort by company, role, status (pipeline order) or date applied; 10/20/50 rows per page; inline status changes.
+- **List view** as a sortable table: sort by company, role, status (pipeline order) or date applied, with inline status changes. Like the board, it shows as many rows as fit on screen with a "Show more" button right below.
 - **Add, edit and delete** applications in an accessible dialog (native `<dialog>`: focus stays inside, Esc closes), so the board is always the first thing on the page. Fields: company, role, date applied, next step, job posting link, job description and notes.
 - **Fill from link.** Paste a job posting URL and the company, role and job description are filled in from the page's schema.org `JobPosting` data (with Open Graph as a fallback). Only empty fields are filled. Login-walled sites such as LinkedIn fall back to manual entry.
 - **Search** by company or role, and **filter** by status using clickable count tiles.
@@ -46,7 +46,7 @@ Sign in with your GitHub account. Your board starts empty and is visible only to
 | Database | PostgreSQL (Neon) via Prisma 7 | Relational data with type-safe queries and versioned migrations. |
 | Auth | Auth.js (NextAuth v5) with GitHub OAuth | The audience is developers, so GitHub sign-in is low-friction and means no passwords to store. |
 | Client state | Zustand | A small store for UI-only state (current view, column order, drag state), kept separate from server data. |
-| Tables | TanStack Table v9 | Headless sorting and pagination logic, while the markup and Tailwind styling stay my own. |
+| Tables | TanStack Table v9 | Headless sorting logic, while the markup and Tailwind styling stay my own. |
 | Drag and drop | dnd-kit | Supports keyboard and screen readers out of the box, which most drag-and-drop libraries don't. |
 | Testing | Vitest, React Testing Library, Playwright | Fast unit and component tests, plus real-browser tests of the core flows. |
 | Hosting / CI | Vercel and GitHub Actions | Preview deploys for every PR, plus a lint, type-check, build and test gate with a throwaway Postgres. |

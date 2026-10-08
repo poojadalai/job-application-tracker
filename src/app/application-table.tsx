@@ -3,14 +3,11 @@
 import { useState } from "react";
 import {
   createColumnHelper,
-  createPaginatedRowModel,
   createSortedRowModel,
-  rowPaginationFeature,
   rowSortingFeature,
   sortFn_text,
   tableFeatures,
   useTable,
-  type PaginationState,
   type SortingState,
 } from "@tanstack/react-table";
 import {
@@ -19,17 +16,17 @@ import {
   type Application,
   type Status,
 } from "@/lib/applications";
+import { useScreenFit } from "@/lib/use-screen-fit";
 
-// TanStack Table only sorts and slices the rows; the markup below is ours.
-// Search and the status filter stay in Tracker, so this table always gets
-// the already-filtered list.
+// TanStack Table sorts the rows; the markup below is ours. Search and the
+// status filter stay in Tracker, so this table always gets the already-
+// filtered list. Like the board, it shows as many rows as fit on screen and
+// a "Show more" button right below them.
 
 const features = tableFeatures({
   rowSortingFeature,
   sortedRowModel: createSortedRowModel(),
   sortFns: { text: sortFn_text },
-  rowPaginationFeature,
-  paginatedRowModel: createPaginatedRowModel(),
 });
 
 const helper = createColumnHelper<typeof features, Application>();
@@ -55,7 +52,8 @@ const columns = helper.columns([
   }),
 ]);
 
-export const PAGE_SIZES = [10, 20, 50] as const;
+// Rows shown before the screen is measured (and in tests without layout).
+export const TABLE_PAGE_SIZE = 20;
 const DEFAULT_SORT: SortingState = [{ id: "appliedDate", desc: true }];
 
 export default function ApplicationTable({
@@ -67,7 +65,7 @@ export default function ApplicationTable({
   deleteDisabled,
 }: {
   applications: Application[];
-  // Changes when search or the status filter changes, which goes back to page 1.
+  // Changes when search or the status filter changes, which shows the first rows again.
   resetKey: string;
   onStatusChange: (id: string, status: Status) => void;
   onEdit: (app: Application) => void;
@@ -75,45 +73,38 @@ export default function ApplicationTable({
   deleteDisabled: boolean;
 }) {
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORT);
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 20,
+  const [bodyRef, pageSize] = useScreenFit<HTMLTableSectionElement>({
+    fallback: TABLE_PAGE_SIZE,
+    isEmpty: applications.length === 0,
   });
+  const [pages, setPages] = useState(1);
 
-  // Reset during render rather than in an effect, so there's no extra paint
-  // of the old page (https://react.dev/learn/you-might-not-need-an-effect).
+  // Back to the first screenful when search or the filter changes. Done
+  // during render rather than in an effect, so the old rows never paint
+  // (https://react.dev/learn/you-might-not-need-an-effect).
   const [previousResetKey, setPreviousResetKey] = useState(resetKey);
   if (resetKey !== previousResetKey) {
     setPreviousResetKey(resetKey);
-    setPagination((current) => ({ ...current, pageIndex: 0 }));
+    setPages(1);
   }
-
-  // After a delete the last page can disappear; move to the new last page.
-  const pageCount = Math.max(1, Math.ceil(applications.length / pagination.pageSize));
-  if (pagination.pageIndex > pageCount - 1) {
-    setPagination((current) => ({ ...current, pageIndex: pageCount - 1 }));
-  }
-  const pageIndex = Math.min(pagination.pageIndex, pageCount - 1);
 
   const table = useTable({
     features,
     columns,
     data: applications,
-    state: { sorting, pagination: { ...pagination, pageIndex } },
+    state: { sorting },
     onSortingChange: (updater) => {
       setSorting(updater);
-      setPagination((current) => ({ ...current, pageIndex: 0 }));
+      setPages(1);
     },
-    onPaginationChange: setPagination,
     enableMultiSort: false,
     enableSortingRemoval: false,
-    // Data changes on every status edit; don't jump back to page 1 for those.
-    autoResetPageIndex: false,
   });
 
-  const rows = table.getRowModel().rows;
-  const first = pageIndex * pagination.pageSize + 1;
-  const last = first + rows.length - 1;
+  // Status edits change the data but keep however many rows are shown.
+  const sortedRows = table.getRowModel().rows;
+  const rows = sortedRows.slice(0, pageSize * pages);
+  const nextCount = Math.min(sortedRows.length - rows.length, pageSize);
 
   return (
     <div className="flex flex-col gap-3">
@@ -154,7 +145,7 @@ export default function ApplicationTable({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          <tbody ref={bodyRef} className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {rows.map(({ original: app }) => (
               <tr key={app.id} className="align-top">
                 <td className="px-3 py-2 font-medium wrap-anywhere">
@@ -215,44 +206,21 @@ export default function ApplicationTable({
         </table>
       </div>
 
-      <nav
-        aria-label="Pagination"
-        className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-600 dark:text-zinc-400"
-      >
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-600 dark:text-zinc-400">
         <span>
-          {first}–{last} of {applications.length} · Page {pageIndex + 1} of {pageCount}
+          Showing {rows.length} of {applications.length}
         </span>
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2">
-            Rows per page
-            <select
-              value={pagination.pageSize}
-              onChange={(e) => setPagination({ pageIndex: 0, pageSize: Number(e.target.value) })}
-              className="rounded-md border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
-            >
-              {PAGE_SIZES.map((size) => (
-                <option key={size}>{size}</option>
-              ))}
-            </select>
-          </label>
+        {nextCount > 0 && (
           <button
             type="button"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            className="rounded-md border border-zinc-300 px-3 py-1 disabled:opacity-40 dark:border-zinc-700"
+            onClick={() => setPages((current) => current + 1)}
+            aria-label={`Show ${nextCount} more applications`}
+            className="rounded-md border border-zinc-300 px-3 py-1 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
           >
-            Previous
+            Show {nextCount} more
           </button>
-          <button
-            type="button"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            className="rounded-md border border-zinc-300 px-3 py-1 disabled:opacity-40 dark:border-zinc-700"
-          >
-            Next
-          </button>
-        </div>
-      </nav>
+        )}
+      </div>
     </div>
   );
 }
