@@ -14,10 +14,16 @@ test("adds an application and keeps it after a reload", async ({ page, createUse
   await signIn(page.context(), await createUser("e2e-adder"));
   await page.goto("/");
 
+  // The board comes first; the form only appears in a dialog.
+  const dialog = page.getByRole("dialog", { name: "Add application" });
+  await expect(dialog).toBeHidden();
+  await page.getByRole("button", { name: "Add application" }).click();
+  await expect(dialog).toBeVisible();
   await page.getByLabel(/Company/).fill("Initech");
   await page.getByLabel(/Role/).fill("QA Engineer");
   await page.getByLabel("Next step").fill("Recruiter call");
-  await page.getByRole("button", { name: "Add application" }).click();
+  await page.getByRole("button", { name: "Save application" }).click();
+  await expect(dialog).toBeHidden();
 
   await expect(column(page, "Applied").getByText("Initech")).toBeVisible();
   await page.reload();
@@ -67,6 +73,7 @@ test("edits and then deletes an application", async ({ page, createUser, seedApp
   await expect(page.getByRole("heading", { name: "Edit application" })).toBeVisible();
   await page.getByLabel(/Role/).fill("Senior Data Analyst");
   await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
   await expect(card).toContainText("Senior Data Analyst");
 
   page.once("dialog", (dialog) => dialog.accept());

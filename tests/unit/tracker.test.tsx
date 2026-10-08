@@ -31,6 +31,9 @@ const apps: Application[] = [
 ];
 
 const column = (status: string) => screen.getByRole("region", { name: `${status} column` });
+const dialog = () => screen.getByRole("dialog", { hidden: true });
+const openAddDialog = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole("button", { name: "Add application" }));
 const tile = (status: string) =>
   screen.getByRole("button", { name: new RegExp(`^\\d+\\s*${status}$`) });
 
@@ -75,18 +78,28 @@ describe("Tracker", () => {
     expect(screen.queryByText("Acme")).not.toBeInTheDocument();
   });
 
-  it("adds an application with trimmed values and clears the form", async () => {
+  it("shows the applications first, with the form closed", () => {
+    render(<Tracker applications={apps} />);
+    expect(dialog()).not.toHaveAttribute("open");
+    expect(within(column("Applied")).getByText("Acme")).toBeInTheDocument();
+  });
+
+  it("adds an application with trimmed values and closes the dialog", async () => {
     const user = userEvent.setup();
     render(<Tracker applications={apps} />);
 
+    await openAddDialog(user);
+    expect(dialog()).toHaveAttribute("open");
+    expect(screen.getByRole("heading", { name: "Add application" })).toBeInTheDocument();
     await user.type(screen.getByLabelText(/Company/), "  Initech  ");
     await user.type(screen.getByLabelText(/Role/), "QA Engineer");
     await user.selectOptions(screen.getByLabelText("Status"), "Screening");
-    await user.click(screen.getByRole("button", { name: "Add application" }));
+    await user.click(screen.getByRole("button", { name: "Save application" }));
 
     expect(createApplication).toHaveBeenCalledWith(
       expect.objectContaining({ company: "Initech", role: "QA Engineer", status: "Screening" }),
     );
+    expect(dialog()).not.toHaveAttribute("open");
     expect(screen.getByLabelText(/Company/)).toHaveValue("");
   });
 
@@ -94,23 +107,56 @@ describe("Tracker", () => {
     const user = userEvent.setup();
     render(<Tracker applications={apps} />);
 
+    await openAddDialog(user);
     await user.type(screen.getByLabelText(/Company/), "   ");
-    await user.click(screen.getByRole("button", { name: "Add application" }));
+    await user.click(screen.getByRole("button", { name: "Save application" }));
 
     expect(createApplication).not.toHaveBeenCalled();
   });
 
-  it("shows an error and keeps the form when saving fails", async () => {
+  it("shows an error and keeps the dialog open when saving fails", async () => {
     vi.mocked(createApplication).mockRejectedValue(new Error("Network down"));
     const user = userEvent.setup();
     render(<Tracker applications={apps} />);
 
+    await openAddDialog(user);
     await user.type(screen.getByLabelText(/Company/), "Initech");
     await user.type(screen.getByLabelText(/Role/), "QA Engineer");
-    await user.click(screen.getByRole("button", { name: "Add application" }));
+    await user.click(screen.getByRole("button", { name: "Save application" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save your change");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Couldn't save your change");
+    expect(dialog()).toContainElement(alert);
+    expect(dialog()).toHaveAttribute("open");
     expect(screen.getByLabelText(/Company/)).toHaveValue("Initech");
+  });
+
+  it("cancel closes the dialog and the next add starts empty", async () => {
+    const user = userEvent.setup();
+    render(<Tracker applications={apps} />);
+
+    await user.click(within(column("Applied")).getByRole("button", { name: "Edit" }));
+    expect(screen.getByLabelText(/Company/)).toHaveValue("Acme");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(dialog()).not.toHaveAttribute("open");
+
+    await openAddDialog(user);
+    expect(screen.getByLabelText(/Company/)).toHaveValue("");
+    expect(updateApplication).not.toHaveBeenCalled();
+  });
+
+  it("shows errors from board actions outside the dialog", async () => {
+    vi.mocked(updateApplicationStatus).mockRejectedValue(new Error("Network down"));
+    const user = userEvent.setup();
+    render(<Tracker applications={apps} />);
+
+    await user.click(screen.getByRole("button", { name: "list" }));
+    const acme = screen.getByText("Acme", { exact: false }).closest("li")!;
+    await user.selectOptions(within(acme).getByRole("combobox", { name: "Status" }), "Offer");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Couldn't save your change");
+    expect(dialog()).not.toContainElement(alert);
   });
 
   it("edits an existing application", async () => {
@@ -131,6 +177,7 @@ describe("Tracker", () => {
       expect.objectContaining({ company: "Acme", role: "Senior Frontend Developer" }),
     );
     expect(createApplication).not.toHaveBeenCalled();
+    expect(dialog()).not.toHaveAttribute("open");
   });
 
   it("deletes only after the user confirms", async () => {

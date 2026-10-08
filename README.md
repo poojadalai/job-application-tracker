@@ -26,7 +26,7 @@ Sign in with your GitHub account. Your board starts empty and is visible only to
 - **Keyboard-accessible drag-and-drop.** Arrow keys move a card a whole column at a time, and screen readers announce each move.
 - **Optimistic updates.** A status change shows instantly and settles once the server confirms it. If the save fails, you see an error.
 - **List view** with inline status changes, as an alternative to the board.
-- **Add, edit and delete** applications: company, role, date applied, next step, job posting link, job description and notes.
+- **Add, edit and delete** applications in an accessible dialog (native `<dialog>`: focus stays inside, Esc closes), so the board is always the first thing on the page. Fields: company, role, date applied, next step, job posting link, job description and notes.
 - **Search** by company or role, and **filter** by status using clickable count tiles.
 - **Stats page.** Applications this week, response rate, and a bar chart of applications by current stage, with empty states. Counted in Postgres for the signed-in user only.
 - **GitHub sign-in.** Each user sees and changes only their own applications.
