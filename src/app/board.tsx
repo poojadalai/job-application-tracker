@@ -262,7 +262,9 @@ function CardBody({
 }) {
   return (
     <div
-      className={`flex flex-col gap-1 rounded-md border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900 ${className}`}
+      // wrap-anywhere lets long unbroken text (e.g. URLs in "Next") wrap
+      // inside the card instead of overflowing the column.
+      className={`flex min-w-0 flex-col gap-1 rounded-md border border-zinc-200 bg-white p-3 wrap-anywhere dark:border-zinc-800 dark:bg-zinc-900 ${className}`}
     >
       <div className="text-sm font-semibold">{app.company}</div>
       <div className="text-sm text-zinc-700 dark:text-zinc-300">{app.role}</div>

@@ -1,5 +1,6 @@
 import {
   STATUSES,
+  capitalizeFirst,
   type ApplicationInput,
   type Status,
 } from "@/lib/applications";
@@ -21,8 +22,8 @@ export function parseDate(value: unknown) {
 
 // Server Actions are public endpoints, so every field is re-validated here.
 export function parseInput(input: ApplicationInput) {
-  const company = text(input.company, 200);
-  const role = text(input.role, 200);
+  const company = capitalizeFirst(text(input.company, 200));
+  const role = capitalizeFirst(text(input.role, 200));
   if (!company || !role) throw new Error("Company and role are required");
   return {
     company,

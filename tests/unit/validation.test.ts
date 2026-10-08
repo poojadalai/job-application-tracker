@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ApplicationInput } from "@/lib/applications";
+import { capitalizeFirst, type ApplicationInput } from "@/lib/applications";
 import { parseDate, parseInput, parseStatus } from "@/lib/validation";
 
 const valid: ApplicationInput = {
@@ -23,6 +23,11 @@ describe("parseInput", () => {
     });
     expect(result).toMatchObject({ company: "Acme", role: "Dev", nextStep: "Call back" });
     expect(result.appliedDate).toEqual(new Date("2026-10-01T00:00:00Z"));
+  });
+
+  it("capitalizes the first letter of company and role", () => {
+    const result = parseInput({ ...valid, company: " cat ", role: "frontend-engineer" });
+    expect(result).toMatchObject({ company: "Cat", role: "Frontend-engineer" });
   });
 
   it.each([
@@ -82,4 +87,17 @@ describe("parseDate", () => {
       expect(() => parseDate(value)).toThrow("Invalid date");
     },
   );
+});
+
+describe("capitalizeFirst", () => {
+  it.each([
+    ["cat", "Cat"],
+    ["full stack", "Full stack"],
+    ["McKinsey", "McKinsey"],
+    ["React Developer", "React Developer"],
+    ["", ""],
+    ["42 labs", "42 labs"],
+  ])("%j -> %j", (input, expected) => {
+    expect(capitalizeFirst(input)).toBe(expected);
+  });
 });

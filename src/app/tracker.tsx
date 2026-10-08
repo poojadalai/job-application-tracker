@@ -11,6 +11,7 @@ import {
 import {
   STATUSES,
   STATUS_STYLES,
+  capitalizeFirst,
   type Application,
   type ApplicationInput,
   type Status,
@@ -47,7 +48,10 @@ export default function Tracker({
   const view = useBoardStore((s) => s.view);
   const setView = useBoardStore((s) => s.setView);
   const columnOrder = useBoardStore((s) => s.columnOrder);
-  const formRef = useRef<HTMLFormElement>(null);
+  // Native <dialog> with showModal() gives focus trapping, Esc to close and
+  // focus return to the opening button without a dialog library.
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<ApplicationInput>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Status | "All">("All");
@@ -78,8 +82,8 @@ export default function Tracker({
     e.preventDefault();
     const values = {
       ...form,
-      company: form.company.trim(),
-      role: form.role.trim(),
+      company: capitalizeFirst(form.company.trim()),
+      role: capitalizeFirst(form.role.trim()),
       nextStep: form.nextStep.trim(),
       link: form.link.trim(),
     };
@@ -89,34 +93,49 @@ export default function Tracker({
         editingId
           ? updateApplication(editingId, values)
           : createApplication(values),
-      () => {
-        setForm(emptyForm());
-        setEditingId(null);
-      },
+      closeDialog,
     );
+  }
+
+  function openDialog(id: string | null, values: ApplicationInput) {
+    setEditingId(id);
+    setForm(values);
+    setError(null);
+    setDialogOpen(true);
+    dialogRef.current?.showModal();
+  }
+
+  function startAdd() {
+    openDialog(null, emptyForm());
   }
 
   function startEdit(app: Application) {
     const { id, ...values } = app;
-    setEditingId(id);
-    setForm(values);
-    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    openDialog(id, values);
   }
 
-  function cancelEdit() {
+  function closeDialog() {
+    dialogRef.current?.close();
+  }
+
+  // Runs for every way the dialog closes: Cancel, Esc, backdrop or save.
+  function handleDialogClose() {
+    setDialogOpen(false);
     setEditingId(null);
     setForm(emptyForm());
+    setError(null);
   }
 
   function handleDelete(app: Application) {
     if (!confirm(`Delete ${app.role} at ${app.company}?`)) return;
-    run(
-      () => deleteApplication(app.id),
-      () => {
-        if (editingId === app.id) cancelEdit();
-      },
-    );
+    run(() => deleteApplication(app.id));
   }
+
+  const errorMessage = error && (
+    <p role="alert" className="text-sm text-red-700 sm:col-span-2 dark:text-red-400">
+      {error}
+    </p>
+  );
 
   const query = search.trim().toLowerCase();
   const visible = applications.filter(
@@ -150,123 +169,6 @@ export default function Tracker({
           </button>
         ))}
       </section>
-
-      <form
-        ref={formRef}
-        onSubmit={handleSubmit}
-        className="grid gap-3 rounded-lg border border-zinc-200 p-4 sm:grid-cols-2 dark:border-zinc-800"
-      >
-        <h2 className="text-lg font-semibold sm:col-span-2">
-          {editingId ? "Edit application" : "Add application"}
-        </h2>
-        <label className="flex flex-col gap-1 text-sm">
-          Company *
-          <input
-            required
-            className={inputClass}
-            value={form.company}
-            onChange={(e) => setForm({ ...form, company: e.target.value })}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Role *
-          <input
-            required
-            className={inputClass}
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value })}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Status
-          <select
-            className={inputClass}
-            value={form.status}
-            onChange={(e) =>
-              setForm({ ...form, status: e.target.value as Status })
-            }
-          >
-            {STATUSES.map((status) => (
-              <option key={status}>{status}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Date applied
-          <input
-            type="date"
-            className={inputClass}
-            value={form.appliedDate}
-            onChange={(e) => setForm({ ...form, appliedDate: e.target.value })}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          Next step
-          <input
-            maxLength={200}
-            placeholder="e.g. Awaiting response, Technical interview May 2"
-            className={inputClass}
-            value={form.nextStep}
-            onChange={(e) => setForm({ ...form, nextStep: e.target.value })}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          Job posting link
-          <input
-            type="url"
-            placeholder="https://"
-            className={inputClass}
-            value={form.link}
-            onChange={(e) => setForm({ ...form, link: e.target.value })}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          Job description
-          <textarea
-            rows={4}
-            className={inputClass}
-            value={form.jobDescription}
-            onChange={(e) =>
-              setForm({ ...form, jobDescription: e.target.value })
-            }
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          Notes
-          <textarea
-            rows={3}
-            className={inputClass}
-            value={form.notes}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          />
-        </label>
-        <div className="flex gap-2 sm:col-span-2">
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-          >
-            {editingId ? "Save changes" : "Add application"}
-          </button>
-          {editingId && (
-            <button
-              type="button"
-              onClick={cancelEdit}
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-        {error && (
-          <p
-            role="alert"
-            className="text-sm text-red-700 sm:col-span-2 dark:text-red-400"
-          >
-            {error}
-          </p>
-        )}
-      </form>
 
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -302,8 +204,18 @@ export default function Tracker({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            <button
+              type="button"
+              onClick={startAdd}
+              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+            >
+              <span aria-hidden="true">+ </span>Add application
+            </button>
           </div>
         </div>
+
+        {/* Errors from board actions (status changes, deletes); form errors show in the dialog. */}
+        {!dialogOpen && errorMessage}
 
         {view === "board" ? (
           <Board
@@ -321,7 +233,7 @@ export default function Tracker({
         ) : visible.length === 0 ? (
           <p className="rounded-lg border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
             {applications.length === 0
-              ? "No applications yet. Add your first one above."
+              ? "No applications yet. Use “Add application” to add your first one."
               : "No applications match this filter."}
           </p>
         ) : (
@@ -331,7 +243,7 @@ export default function Tracker({
                 key={app.id}
                 className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 sm:flex-row sm:items-start sm:justify-between dark:border-zinc-800"
               >
-                <div className="flex min-w-0 flex-col gap-1">
+                <div className="flex min-w-0 flex-col gap-1 wrap-anywhere">
                   <div className="font-semibold">{app.role}</div>
                   <div className="text-sm text-zinc-600 dark:text-zinc-400">
                     {app.company}
@@ -402,6 +314,126 @@ export default function Tracker({
           </ul>
         )}
       </section>
+
+      <dialog
+        ref={dialogRef}
+        aria-labelledby="application-dialog-title"
+        onClose={handleDialogClose}
+        // A click on the dialog element itself (not the form) is a backdrop click.
+        onClick={(e) => {
+          if (e.target === e.currentTarget) closeDialog();
+        }}
+        className="m-auto max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-lg border border-zinc-200 bg-background p-0 text-foreground backdrop:bg-black/50 dark:border-zinc-800"
+      >
+        <form
+          onSubmit={handleSubmit}
+          className="grid gap-3 p-4 sm:grid-cols-2"
+        >
+          <h2 id="application-dialog-title" className="text-lg font-semibold sm:col-span-2">
+            {editingId ? "Edit application" : "Add application"}
+          </h2>
+          <label className="flex flex-col gap-1 text-sm">
+            Company *
+            <input
+              required
+              className={inputClass}
+              value={form.company}
+              onChange={(e) => setForm({ ...form, company: e.target.value })}
+              onBlur={() => setForm({ ...form, company: capitalizeFirst(form.company) })}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Role *
+            <input
+              required
+              className={inputClass}
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              onBlur={() => setForm({ ...form, role: capitalizeFirst(form.role) })}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Status
+            <select
+              className={inputClass}
+              value={form.status}
+              onChange={(e) =>
+                setForm({ ...form, status: e.target.value as Status })
+              }
+            >
+              {STATUSES.map((status) => (
+                <option key={status}>{status}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Date applied
+            <input
+              type="date"
+              className={inputClass}
+              value={form.appliedDate}
+              onChange={(e) => setForm({ ...form, appliedDate: e.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+            Next step
+            <input
+              maxLength={200}
+              placeholder="e.g. Awaiting response, Technical interview May 2"
+              className={inputClass}
+              value={form.nextStep}
+              onChange={(e) => setForm({ ...form, nextStep: e.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+            Job posting link
+            <input
+              type="url"
+              placeholder="https://"
+              className={inputClass}
+              value={form.link}
+              onChange={(e) => setForm({ ...form, link: e.target.value })}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+            Job description
+            <textarea
+              rows={4}
+              className={inputClass}
+              value={form.jobDescription}
+              onChange={(e) =>
+                setForm({ ...form, jobDescription: e.target.value })
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+            Notes
+            <textarea
+              rows={3}
+              className={inputClass}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
+          </label>
+          <div className="flex gap-2 sm:col-span-2">
+            <button
+              type="submit"
+              disabled={pending}
+              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+            >
+              {editingId ? "Save changes" : "Save application"}
+            </button>
+            <button
+              type="button"
+              onClick={closeDialog}
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700"
+            >
+              Cancel
+            </button>
+          </div>
+          {dialogOpen && errorMessage}
+        </form>
+      </dialog>
     </div>
   );
 }

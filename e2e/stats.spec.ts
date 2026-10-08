@@ -29,10 +29,11 @@ test("updates after adding and moving an application", async ({ page, createUser
   await signIn(page.context(), await createUser("e2e-stats"));
   await page.goto("/");
 
-  // Add one through the form; its applied date defaults to today.
+  // Add one through the dialog; its applied date defaults to today.
+  await page.getByRole("button", { name: "Add application" }).click();
   await page.getByLabel(/Company/).fill("Hooli");
   await page.getByLabel(/Role/).fill("Frontend Developer");
-  await page.getByRole("button", { name: "Add application" }).click();
+  await page.getByRole("button", { name: "Save application" }).click();
   await expect(page.getByRole("region", { name: "Applied column" }).getByText("Hooli")).toBeVisible();
 
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Stats" }).click();

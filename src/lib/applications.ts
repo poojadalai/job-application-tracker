@@ -31,3 +31,10 @@ export const STATUS_STYLES: Record<Status, string> = {
   Offer: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300",
   Rejected: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
 };
+
+// Company and role always start with a capital ("cat" -> "Cat"). Only the
+// first letter changes, so names like "McKinsey" or "React Developer" keep
+// their own casing.
+export function capitalizeFirst(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
