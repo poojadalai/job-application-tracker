@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createApplication,
   deleteApplication,
+  fetchJobPosting,
   updateApplication,
   updateApplicationStatus,
 } from "@/app/actions";
@@ -16,6 +17,7 @@ vi.mock("@/app/actions", () => ({
   updateApplication: vi.fn(),
   updateApplicationStatus: vi.fn(),
   deleteApplication: vi.fn(),
+  fetchJobPosting: vi.fn(),
 }));
 
 const base = {
@@ -230,5 +232,72 @@ describe("Tracker", () => {
       .getAllByRole("region")
       .map((region) => region.getAttribute("aria-label"));
     expect(names.slice(0, 2)).toEqual(["Screening column", "Applied column"]);
+  });
+});
+
+describe("Fill from link", () => {
+  const link = "https://jobs.jouwweb.nl/o/front-end-engineer";
+
+  it("is disabled until a link is entered", async () => {
+    const user = userEvent.setup();
+    render(<Tracker applications={apps} />);
+    await openAddDialog(user);
+
+    const button = screen.getByRole("button", { name: "Fill from link" });
+    expect(button).toBeDisabled();
+    await user.type(screen.getByLabelText("Job posting link"), link);
+    expect(button).toBeEnabled();
+  });
+
+  it("fills only the fields that are still empty", async () => {
+    vi.mocked(fetchJobPosting).mockResolvedValue({
+      ok: true,
+      company: "JouwWeb",
+      role: "Front End Engineer",
+      jobDescription: "Build websites for small businesses.",
+    });
+    const user = userEvent.setup();
+    render(<Tracker applications={apps} />);
+    await openAddDialog(user);
+
+    await user.type(screen.getByLabelText(/Company/), "My own name for it");
+    await user.type(screen.getByLabelText("Job posting link"), link);
+    await user.click(screen.getByRole("button", { name: "Fill from link" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Filled from the job posting");
+    expect(fetchJobPosting).toHaveBeenCalledWith(link);
+    expect(screen.getByLabelText(/Company/)).toHaveValue("My own name for it");
+    expect(screen.getByLabelText(/Role/)).toHaveValue("Front End Engineer");
+    expect(screen.getByLabelText("Job description")).toHaveValue(
+      "Build websites for small businesses.",
+    );
+    expect(createApplication).not.toHaveBeenCalled();
+  });
+
+  it("asks to fill in manually when the page can't be read", async () => {
+    vi.mocked(fetchJobPosting).mockResolvedValue({ ok: false, reason: "unreadable" });
+    const user = userEvent.setup();
+    render(<Tracker applications={apps} />);
+    await openAddDialog(user);
+
+    await user.type(screen.getByLabelText("Job posting link"), "https://www.linkedin.com/jobs/view/1");
+    await user.click(screen.getByRole("button", { name: "Fill from link" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Couldn't read this page. Fill in the details manually.",
+    );
+    expect(screen.getByLabelText(/Company/)).toHaveValue("");
+  });
+
+  it("explains an invalid link", async () => {
+    vi.mocked(fetchJobPosting).mockResolvedValue({ ok: false, reason: "invalid-link" });
+    const user = userEvent.setup();
+    render(<Tracker applications={apps} />);
+    await openAddDialog(user);
+
+    await user.type(screen.getByLabelText("Job posting link"), "jobs.example.com/123");
+    await user.click(screen.getByRole("button", { name: "Fill from link" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("starting with https://");
   });
 });

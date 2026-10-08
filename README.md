@@ -27,6 +27,7 @@ Sign in with your GitHub account. Your board starts empty and is visible only to
 - **Optimistic updates.** A status change shows instantly and settles once the server confirms it. If the save fails, you see an error.
 - **List view** with inline status changes, as an alternative to the board.
 - **Add, edit and delete** applications in an accessible dialog (native `<dialog>`: focus stays inside, Esc closes), so the board is always the first thing on the page. Fields: company, role, date applied, next step, job posting link, job description and notes.
+- **Fill from link.** Paste a job posting URL and the company, role and job description are filled in from the page's schema.org `JobPosting` data (with Open Graph as a fallback). Only empty fields are filled. Login-walled sites such as LinkedIn fall back to manual entry.
 - **Search** by company or role, and **filter** by status using clickable count tiles.
 - **Stats page.** Applications this week, response rate, and a bar chart of applications by current stage, with empty states. Counted in Postgres for the signed-in user only.
 - **GitHub sign-in.** Each user sees and changes only their own applications.
@@ -60,6 +61,8 @@ Sign in with your GitHub account. Your board starts empty and is visible only to
 **Stats are aggregated on the server.** The `/stats` page is a Server Component that runs a Prisma `groupBy` on status and a `count` for this week, both filtered by `userId`, so only totals reach the browser and no chart library is needed (the bars are plain HTML/CSS with the numbers as text). Definitions: *this week* is Monday to Sunday on UTC dates, by applied date; a *response* is any application that has moved past Applied, rejections included. There is no status history yet, so the chart shows each application's **current** stage rather than a true conversion funnel; that would need a status-change table.
 
 **Problems solved and trade-offs**
+
+- **Fetching user-supplied URLs safely (SSRF).** "Fill from link" makes the server request a URL a user typed, which could otherwise be pointed at internal addresses such as cloud metadata (`169.254.169.254`). [`safe-fetch.ts`](src/lib/safe-fetch.ts) allows only http(s) on standard ports and checks every resolved IP inside the DNS lookup used for the actual connection, so a hostname can't pass the check and then resolve somewhere private (DNS rebinding). Redirects go through the same checks, with a 5-second deadline and a 2 MB cap. No dependency was needed.
 
 - **Adding auth to an app that already had data.** Applications created before sign-in existed had no owner. `userId` is nullable, and on first sign-in the GitHub account named in `CLAIM_UNOWNED_GITHUB_LOGIN` takes ownership of those rows. Existing data was migrated without a manual script.
 - **Changing an enum without losing data.** Replacing the `Wishlist` status with `Screening` needed a hand-edited migration: move the affected rows to `Applied` first, then swap the Postgres enum inside a transaction.
