@@ -5,6 +5,7 @@ import Board from "./board";
 import {
   createApplication,
   deleteApplication,
+  fetchJobPosting,
   updateApplication,
   updateApplicationStatus,
 } from "./actions";
@@ -17,6 +18,9 @@ import {
   type Status,
 } from "@/lib/applications";
 import { useBoardStore } from "@/lib/board-store";
+
+// Fields "Fill from link" may fill in.
+const FILLABLE = ["company", "role", "jobDescription"] as const;
 
 const inputClass =
   "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900";
@@ -58,6 +62,8 @@ export default function Tracker({
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [filling, startFill] = useTransition();
+  const [fillMessage, setFillMessage] = useState<string | null>(null);
 
   function run(action: () => Promise<void>, onSuccess?: () => void) {
     setError(null);
@@ -101,6 +107,7 @@ export default function Tracker({
     setEditingId(id);
     setForm(values);
     setError(null);
+    setFillMessage(null);
     setDialogOpen(true);
     dialogRef.current?.showModal();
   }
@@ -124,6 +131,40 @@ export default function Tracker({
     setEditingId(null);
     setForm(emptyForm());
     setError(null);
+    setFillMessage(null);
+  }
+
+  // Fills company, role and description from the job page, but only fields
+  // that are still empty, so nothing the user typed is overwritten.
+  function fillFromLink() {
+    const link = form.link.trim();
+    setFillMessage(null);
+    startFill(async () => {
+      const result = await fetchJobPosting(link).catch(
+        () => ({ ok: false, reason: "unreadable" }) as const,
+      );
+      if (!result.ok) {
+        setFillMessage(
+          result.reason === "invalid-link"
+            ? "Enter a full link starting with https://"
+            : "Couldn't read this page. Fill in the details manually.",
+        );
+        return;
+      }
+      const filled = FILLABLE.filter((field) => !form[field].trim() && result[field]);
+      setForm((current) => {
+        const next = { ...current };
+        for (const field of FILLABLE) {
+          if (!current[field].trim() && result[field]) next[field] = result[field];
+        }
+        return next;
+      });
+      setFillMessage(
+        filled.length > 0
+          ? "Filled from the job posting. Check the details before saving."
+          : "Nothing to fill: company, role and description already have values.",
+      );
+    });
   }
 
   function handleDelete(app: Application) {
@@ -332,6 +373,34 @@ export default function Tracker({
           <h2 id="application-dialog-title" className="text-lg font-semibold sm:col-span-2">
             {editingId ? "Edit application" : "Add application"}
           </h2>
+          {/* First, so a pasted link can fill the fields below it. The button
+              sits outside the <label> so it isn't part of the input's name. */}
+          <div className="flex flex-col gap-1 text-sm sm:col-span-2">
+            <label htmlFor="job-posting-link">Job posting link</label>
+            <div className="flex gap-2">
+              <input
+                id="job-posting-link"
+                type="url"
+                placeholder="https://"
+                className={inputClass}
+                value={form.link}
+                onChange={(e) => setForm({ ...form, link: e.target.value })}
+              />
+              <button
+                type="button"
+                onClick={fillFromLink}
+                disabled={filling || !form.link.trim()}
+                className="shrink-0 rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-zinc-700"
+              >
+                {filling ? "Filling…" : "Fill from link"}
+              </button>
+            </div>
+            {fillMessage && (
+              <p role="status" className="text-xs text-zinc-600 dark:text-zinc-400">
+                {fillMessage}
+              </p>
+            )}
+          </div>
           <label className="flex flex-col gap-1 text-sm">
             Company *
             <input
@@ -383,16 +452,6 @@ export default function Tracker({
               className={inputClass}
               value={form.nextStep}
               onChange={(e) => setForm({ ...form, nextStep: e.target.value })}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-            Job posting link
-            <input
-              type="url"
-              placeholder="https://"
-              className={inputClass}
-              value={form.link}
-              onChange={(e) => setForm({ ...form, link: e.target.value })}
             />
           </label>
           <label className="flex flex-col gap-1 text-sm sm:col-span-2">
