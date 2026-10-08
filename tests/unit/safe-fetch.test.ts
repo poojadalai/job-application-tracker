@@ -24,12 +24,13 @@ describe("isPublicAddress", () => {
     "fd12:3456::1",
     "::ffff:127.0.0.1",
     "::ffff:7f00:1",
+    "::ffff:a9fe:a9fe", // 169.254.169.254, hex form
     "not-an-ip",
   ])("blocks %s", (address) => {
     expect(isPublicAddress(address)).toBe(false);
   });
 
-  it.each(["8.8.8.8", "93.184.215.14", "2606:4700:4700::1111"])("allows %s", (address) => {
+  it.each(["8.8.8.8", "93.184.215.14", "2606:4700:4700::1111", "::ffff:8.8.8.8"])("allows %s", (address) => {
     expect(isPublicAddress(address)).toBe(true);
   });
 });

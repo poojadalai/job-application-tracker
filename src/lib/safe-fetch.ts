@@ -36,7 +36,9 @@ for (const [network, prefix] of [
 }
 for (const [network, prefix] of [
   ["::", 127], // unspecified and loopback (::1)
-  ["::ffff:0:0", 96], // IPv4-mapped, e.g. ::ffff:127.0.0.1
+  // No ::ffff:0:0/96 rule for IPv4-mapped addresses: BlockList also matches
+  // plain IPv4 addresses against it, which would block every IPv4 site.
+  // mappedIPv4() below handles those instead.
   ["64:ff9b::", 96], // NAT64
   ["fc00::", 7], // unique local
   ["fe80::", 10], // link-local
@@ -45,9 +47,23 @@ for (const [network, prefix] of [
   blocked.addSubnet(network, prefix, "ipv6");
 }
 
-export function isPublicAddress(address: string) {
+// "::ffff:127.0.0.1" or its hex form "::ffff:7f00:1" -> "127.0.0.1".
+function mappedIPv4(address: string) {
+  const match = address
+    .toLowerCase()
+    .match(/^::ffff:(?:(\d+\.\d+\.\d+\.\d+)|([\da-f]{1,4}):([\da-f]{1,4}))$/);
+  if (!match) return undefined;
+  if (match[1]) return match[1];
+  const high = parseInt(match[2], 16);
+  const low = parseInt(match[3], 16);
+  return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+}
+
+export function isPublicAddress(address: string): boolean {
   const family = isIP(address);
   if (family === 0) return false;
+  const ipv4 = family === 6 ? mappedIPv4(address) : undefined;
+  if (ipv4) return isPublicAddress(ipv4);
   return !blocked.check(address, family === 4 ? "ipv4" : "ipv6");
 }
 
