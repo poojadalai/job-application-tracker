@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -47,8 +47,13 @@ const columnKeyboardCoordinates: KeyboardCoordinateGetter = (
   };
 };
 
-// Long columns show this many cards, then a "Show more" button.
+// Long columns show as many cards as fit on screen, then a "Show more"
+// button. This is the count before the screen is measured (and in tests,
+// where there is no layout).
 export const COLUMN_PAGE_SIZE = 10;
+const MIN_CARDS = 3;
+const CARD_GAP = 8; // gap-2 between cards
+const SHOW_MORE_SPACE = 64; // room for the button and page padding
 
 type CardActions = {
   onEdit: (app: Application) => void;
@@ -164,9 +169,37 @@ function Column({
   pinnedId: string | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
-  const [limit, setLimit] = useState(COLUMN_PAGE_SIZE);
-  const shown = applications.filter((app, index) => index < limit || app.id === pinnedId);
+  const listRef = useRef<HTMLUListElement>(null);
+  const [pageSize, setPageSize] = useState(COLUMN_PAGE_SIZE);
+  const [pages, setPages] = useState(1);
+  const shown = applications.filter(
+    (app, index) => index < pageSize * pages || app.id === pinnedId,
+  );
   const hidden = applications.length - shown.length;
+  const nextCount = Math.min(hidden, pageSize);
+  const isEmpty = applications.length === 0;
+
+  // Fit the cards between the top of the column and the bottom of the screen,
+  // so "Show more" is visible without scrolling. Uses the average height of
+  // the cards on screen; runs before paint, and again on resize.
+  useLayoutEffect(() => {
+    function measure() {
+      const list = listRef.current;
+      const cards = list ? Array.from(list.children) : [];
+      if (!list || cards.length === 0) return;
+      const average =
+        cards.reduce((sum, card) => sum + card.getBoundingClientRect().height, 0) / cards.length;
+      if (average <= 0) return; // no layout to measure
+      const top = list.getBoundingClientRect().top + window.scrollY;
+      const available = window.innerHeight - top - SHOW_MORE_SPACE;
+      setPageSize(
+        Math.max(MIN_CARDS, Math.floor((available + CARD_GAP) / (average + CARD_GAP))),
+      );
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [isEmpty]);
   const moveColumn = useBoardStore((s) => s.moveColumn);
   const arrowClass =
     "rounded px-1.5 text-zinc-500 hover:bg-zinc-200 disabled:invisible dark:hover:bg-zinc-800";
@@ -211,7 +244,7 @@ function Column({
           </button>
         </div>
       </header>
-      <ul className="flex min-h-24 flex-col gap-2">
+      <ul ref={listRef} className="flex min-h-24 flex-col gap-2">
         {shown.map((app) => (
           <Card key={app.id} app={app} {...actions} />
         ))}
@@ -219,11 +252,11 @@ function Column({
       {hidden > 0 && (
         <button
           type="button"
-          onClick={() => setLimit((current) => current + COLUMN_PAGE_SIZE)}
-          aria-label={`Show ${Math.min(hidden, COLUMN_PAGE_SIZE)} more ${status} applications`}
+          onClick={() => setPages((current) => current + 1)}
+          aria-label={`Show ${nextCount} more ${status} applications`}
           className="rounded-md px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800"
         >
-          Show {Math.min(hidden, COLUMN_PAGE_SIZE)} more
+          Show {nextCount} more
         </button>
       )}
     </section>

@@ -22,7 +22,7 @@ Sign in with your GitHub account. Your board starts empty and is visible only to
 
 ## Features
 
-- **Kanban board.** Drag applications between Applied → Screening → Interview → Offer → Rejected. Columns can be reordered for the current session, and long columns show 10 cards with a "Show more" button.
+- **Kanban board.** Drag applications between Applied → Screening → Interview → Offer → Rejected. Columns can be reordered for the current session, and long columns show as many cards as fit on screen, with a "Show more" button right below.
 - **Keyboard-accessible drag-and-drop.** Arrow keys move a card a whole column at a time, and screen readers announce each move.
 - **Optimistic updates.** A status change shows instantly and settles once the server confirms it. If the save fails, you see an error.
 - **List view** as a sortable, paginated table: sort by company, role, status (pipeline order) or date applied; 10/20/50 rows per page; inline status changes.
