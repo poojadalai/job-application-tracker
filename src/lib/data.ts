@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
-import type { Application } from "@/lib/applications";
+import { capitalizeFirst, type Application } from "@/lib/applications";
 import { computeStats, weekRange, type Stats } from "@/lib/stats";
 
 export async function listApplications(): Promise<Application[]> {
@@ -11,8 +11,9 @@ export async function listApplications(): Promise<Application[]> {
   });
   return rows.map((row) => ({
     id: row.id,
-    company: row.company,
-    role: row.role,
+    // Also applied on read, for rows saved before capitalization existed.
+    company: capitalizeFirst(row.company),
+    role: capitalizeFirst(row.role),
     status: row.status,
     appliedDate: row.appliedDate?.toISOString().slice(0, 10) ?? "",
     jobDescription: row.jobDescription,

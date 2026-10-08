@@ -11,6 +11,7 @@ import {
 import {
   STATUSES,
   STATUS_STYLES,
+  capitalizeFirst,
   type Application,
   type ApplicationInput,
   type Status,
@@ -81,8 +82,8 @@ export default function Tracker({
     e.preventDefault();
     const values = {
       ...form,
-      company: form.company.trim(),
-      role: form.role.trim(),
+      company: capitalizeFirst(form.company.trim()),
+      role: capitalizeFirst(form.role.trim()),
       nextStep: form.nextStep.trim(),
       link: form.link.trim(),
     };
@@ -242,7 +243,7 @@ export default function Tracker({
                 key={app.id}
                 className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 sm:flex-row sm:items-start sm:justify-between dark:border-zinc-800"
               >
-                <div className="flex min-w-0 flex-col gap-1">
+                <div className="flex min-w-0 flex-col gap-1 wrap-anywhere">
                   <div className="font-semibold">{app.role}</div>
                   <div className="text-sm text-zinc-600 dark:text-zinc-400">
                     {app.company}
@@ -338,6 +339,7 @@ export default function Tracker({
               className={inputClass}
               value={form.company}
               onChange={(e) => setForm({ ...form, company: e.target.value })}
+              onBlur={() => setForm({ ...form, company: capitalizeFirst(form.company) })}
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -347,6 +349,7 @@ export default function Tracker({
               className={inputClass}
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
+              onBlur={() => setForm({ ...form, role: capitalizeFirst(form.role) })}
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">

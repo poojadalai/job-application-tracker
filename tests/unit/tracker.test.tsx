@@ -91,7 +91,7 @@ describe("Tracker", () => {
     await openAddDialog(user);
     expect(dialog()).toHaveAttribute("open");
     expect(screen.getByRole("heading", { name: "Add application" })).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/Company/), "  Initech  ");
+    await user.type(screen.getByLabelText(/Company/), "  initech  ");
     await user.type(screen.getByLabelText(/Role/), "QA Engineer");
     await user.selectOptions(screen.getByLabelText("Status"), "Screening");
     await user.click(screen.getByRole("button", { name: "Save application" }));
@@ -101,6 +101,20 @@ describe("Tracker", () => {
     );
     expect(dialog()).not.toHaveAttribute("open");
     expect(screen.getByLabelText(/Company/)).toHaveValue("");
+  });
+
+  it("capitalizes company and role when leaving the field", async () => {
+    const user = userEvent.setup();
+    render(<Tracker applications={apps} />);
+
+    await openAddDialog(user);
+    await user.type(screen.getByLabelText(/Company/), "cat");
+    await user.tab();
+    await user.type(screen.getByLabelText(/Role/), "frontend engineer");
+    await user.tab();
+
+    expect(screen.getByLabelText(/Company/)).toHaveValue("Cat");
+    expect(screen.getByLabelText(/Role/)).toHaveValue("Frontend engineer");
   });
 
   it("does not submit without a company and role", async () => {

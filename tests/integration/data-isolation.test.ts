@@ -85,6 +85,20 @@ describe("per-user data isolation", () => {
     expect(await prisma.application.count({ where: { userId: bob.id } })).toBe(0);
   });
 
+  it("capitalizes company and role on save and for older rows", async () => {
+    signInAs(alice);
+    await createApplication(input({ company: "cat", role: "full stack" }));
+    await prisma.application.create({
+      data: { company: "funda", role: "frontend-engineer", userId: alice.id },
+    });
+
+    const listed = (await listApplications()).map((a) => `${a.company} / ${a.role}`);
+    expect(listed.sort()).toEqual(["Cat / Full stack", "Funda / Frontend-engineer"]);
+    expect(
+      await prisma.application.count({ where: { userId: alice.id, company: "Cat" } }),
+    ).toBe(1);
+  });
+
   it("lists only the signed-in user's applications", async () => {
     await createAs(alice, { company: "Alice Co" });
     await createAs(bob, { company: "Bob Co" });
