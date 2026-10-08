@@ -65,7 +65,7 @@ describe("Board columns on a real screen", () => {
   it("shows as many cards as fit on screen, then a screenful more per click", async () => {
     // jsdom has no layout, so fake one: 100px cards, the column list starting
     // 300px down, in jsdom's default 768px-high window.
-    // (768 - 300 - 64 + 8) / (100 + 8) = 3.8, so 3 cards fit.
+    // 768 - 300 - 88 (button and padding) = 380px: 3 cards of 100px + gaps fit.
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
       this: Element,
     ) {
@@ -82,7 +82,7 @@ describe("Board columns on a real screen", () => {
     expect(within(column).getAllByRole("listitem")).toHaveLength(6);
   });
 
-  it("always shows at least 3 cards on a short screen", () => {
+  it("always shows at least 1 card on a very short screen", () => {
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
       this: Element,
     ) {
@@ -90,6 +90,22 @@ describe("Board columns on a real screen", () => {
       return { top: isCard ? 0 : 700, height: isCard ? 300 : 0 } as DOMRect;
     });
     const column = renderBoard();
-    expect(within(column).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(column).getAllByRole("listitem")).toHaveLength(1);
+  });
+
+  it("counts tall cards at their real height, so the last one isn't cut off", () => {
+    // Window 768px, list starts at 300px, 88px kept for the button: 380px.
+    // Cards of 150px fit twice (150 + 8 + 150 = 308); a third would end at 466.
+    // An average-based estimate over short and tall cards could overshoot.
+    const heights = [150, 150, 150, 50, 50, 50, 50, 50, 50, 50];
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      if (this.tagName !== "LI") return { top: 300, height: 0 } as DOMRect;
+      const index = Array.from(this.parentElement?.children ?? []).indexOf(this);
+      return { top: 0, height: heights[index] ?? 50 } as DOMRect;
+    });
+    const column = renderBoard();
+    expect(within(column).getAllByRole("listitem")).toHaveLength(2);
   });
 });

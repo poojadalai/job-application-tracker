@@ -105,7 +105,7 @@ describe("ApplicationTable Show more", () => {
   it("shows as many rows as fit on screen, then a screenful more per click", async () => {
     // jsdom has no layout, so fake one: 50px rows, the table body starting
     // 300px down, in jsdom's default 768px-high window.
-    // (768 - 300 - 64) / 50 = 8.08, so 8 rows fit.
+    // 768 - 300 - 88 (button and padding) = 380px, so 7 rows of 50px fit.
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
       this: Element,
     ) {
@@ -114,9 +114,9 @@ describe("ApplicationTable Show more", () => {
     const user = userEvent.setup();
     renderTable(many(25));
 
-    expect(bodyRows()).toHaveLength(8);
-    await user.click(showMore(8));
-    expect(bodyRows()).toHaveLength(16);
+    expect(bodyRows()).toHaveLength(7);
+    await user.click(showMore(7));
+    expect(bodyRows()).toHaveLength(14);
   });
 
   it("has no Show more button when everything fits", () => {
