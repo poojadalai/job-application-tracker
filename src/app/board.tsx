@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -46,6 +46,9 @@ const columnKeyboardCoordinates: KeyboardCoordinateGetter = (
     y: rect.top + 40,
   };
 };
+
+// Long columns show this many cards, then a "Show more" button.
+export const COLUMN_PAGE_SIZE = 10;
 
 type CardActions = {
   onEdit: (app: Application) => void;
@@ -98,11 +101,17 @@ export default function Board({
     setDraggingId(String(event.active.id));
   }
 
+  const [lastMovedId, setLastMovedId] = useState<string | null>(null);
+
   function handleDragEnd(event: DragEndEvent) {
     setDraggingId(null);
     const app = applications.find((a) => a.id === event.active.id);
     const status = event.over?.id as Status | undefined;
-    if (app && status && status !== app.status) onMove(app.id, status);
+    if (app && status && status !== app.status) {
+      // Keep the moved card visible even if it lands past the "Show more" cut-off.
+      setLastMovedId(app.id);
+      onMove(app.id, status);
+    }
   }
 
   return (
@@ -128,6 +137,7 @@ export default function Board({
             isFirst={index === 0}
             isLast={index === columns.length - 1}
             applications={applications.filter((app) => app.status === status)}
+            pinnedId={lastMovedId}
             {...actions}
           />
         ))}
@@ -144,14 +154,19 @@ function Column({
   isFirst,
   isLast,
   applications,
+  pinnedId,
   ...actions
 }: CardActions & {
   status: Status;
   isFirst: boolean;
   isLast: boolean;
   applications: Application[];
+  pinnedId: string | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  const [limit, setLimit] = useState(COLUMN_PAGE_SIZE);
+  const shown = applications.filter((app, index) => index < limit || app.id === pinnedId);
+  const hidden = applications.length - shown.length;
   const moveColumn = useBoardStore((s) => s.moveColumn);
   const arrowClass =
     "rounded px-1.5 text-zinc-500 hover:bg-zinc-200 disabled:invisible dark:hover:bg-zinc-800";
@@ -197,10 +212,20 @@ function Column({
         </div>
       </header>
       <ul className="flex min-h-24 flex-col gap-2">
-        {applications.map((app) => (
+        {shown.map((app) => (
           <Card key={app.id} app={app} {...actions} />
         ))}
       </ul>
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setLimit((current) => current + COLUMN_PAGE_SIZE)}
+          aria-label={`Show ${Math.min(hidden, COLUMN_PAGE_SIZE)} more ${status} applications`}
+          className="rounded-md px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-200 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        >
+          Show {Math.min(hidden, COLUMN_PAGE_SIZE)} more
+        </button>
+      )}
     </section>
   );
 }

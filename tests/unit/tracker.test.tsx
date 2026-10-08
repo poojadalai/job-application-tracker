@@ -167,7 +167,7 @@ describe("Tracker", () => {
     render(<Tracker applications={apps} />);
 
     await user.click(screen.getByRole("button", { name: "list" }));
-    const acme = screen.getByText("Acme", { exact: false }).closest("li")!;
+    const acme = screen.getByText("Acme", { exact: false }).closest("tr")!;
     await user.selectOptions(within(acme).getByRole("combobox", { name: "Status" }), "Offer");
 
     const alert = await screen.findByRole("alert");
@@ -216,7 +216,7 @@ describe("Tracker", () => {
     render(<Tracker applications={apps} />);
 
     await user.click(screen.getByRole("button", { name: "list" }));
-    const acme = screen.getByText("Acme", { exact: false }).closest("li")!;
+    const acme = screen.getByText("Acme", { exact: false }).closest("tr")!;
     await user.selectOptions(within(acme).getByRole("combobox", { name: "Status" }), "Offer");
 
     expect(updateApplicationStatus).toHaveBeenCalledWith("a1", "Offer");

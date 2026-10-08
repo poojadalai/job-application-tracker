@@ -28,6 +28,7 @@ Language	TypeScript (strict)		Yes (strict: true)
 Styling	Tailwind CSS 4	Common requirement, new to my CV	Yes
 Client state	Zustand (only where genuinely needed)	Modern alternative to Redux, which I already know	Yes, UI-only state (view, column order, drag state) in src/lib/board-store.ts; not persisted
 Server state	TanStack Query (only where genuinely needed)	Right tool for client-side server state	Not installed. Server data comes from Server Components as props; optimistic status changes use React's useOptimistic
+Tables	TanStack Table v9 (@tanstack/react-table)	Headless sorting/pagination; markup and styling stay ours	Yes, list view (src/app/application-table.tsx). v9 API differs from v8: read node_modules/@tanstack/react-table/skills first
 Drag and drop	dnd-kit (@dnd-kit/core)	Keyboard and screen-reader support built in	Yes
 Data	Prisma 7 + Postgres (Neon)	TS-first ORM	Yes, via @prisma/adapter-pg; models User + Application (no Interview yet)
 Auth	Auth.js v5 (next-auth beta), GitHub provider, JWT sessions	Not on my CV yet	Yes
