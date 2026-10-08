@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useRef, useState, useTransition } from "react";
+import ApplicationTable from "./application-table";
 import Board from "./board";
 import {
   createApplication,
@@ -11,7 +12,6 @@ import {
 } from "./actions";
 import {
   STATUSES,
-  STATUS_STYLES,
   capitalizeFirst,
   type Application,
   type ApplicationInput,
@@ -278,81 +278,14 @@ export default function Tracker({
               : "No applications match this filter."}
           </p>
         ) : (
-          <ul className="flex flex-col gap-3">
-            {visible.map((app) => (
-              <li
-                key={app.id}
-                className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 sm:flex-row sm:items-start sm:justify-between dark:border-zinc-800"
-              >
-                <div className="flex min-w-0 flex-col gap-1 wrap-anywhere">
-                  <div className="font-semibold">{app.role}</div>
-                  <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {app.company}
-                    {app.appliedDate && ` · ${app.appliedDate}`}
-                  </div>
-                  {app.nextStep && (
-                    <div className="text-sm text-zinc-700 dark:text-zinc-300">
-                      Next: {app.nextStep}
-                    </div>
-                  )}
-                  {app.link && (
-                    <a
-                      href={app.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="truncate text-sm text-blue-600 underline dark:text-blue-400"
-                    >
-                      Job posting
-                    </a>
-                  )}
-                  {app.jobDescription && (
-                    <details className="text-sm">
-                      <summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">
-                        Job description
-                      </summary>
-                      <p className="mt-1 whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
-                        {app.jobDescription}
-                      </p>
-                    </details>
-                  )}
-                  {app.notes && (
-                    <p className="whitespace-pre-wrap text-sm text-zinc-700 dark:text-zinc-300">
-                      {app.notes}
-                    </p>
-                  )}
-                </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  <select
-                    aria-label="Status"
-                    value={app.status}
-                    onChange={(e) =>
-                      changeStatus(app.id, e.target.value as Status)
-                    }
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLES[app.status]}`}
-                  >
-                    {STATUSES.map((status) => (
-                      <option key={status}>{status}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => startEdit(app)}
-                    className="rounded-md border border-zinc-300 px-3 py-1 text-xs dark:border-zinc-700"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => handleDelete(app)}
-                    className="rounded-md border border-red-300 px-3 py-1 text-xs text-red-700 dark:border-red-900 dark:text-red-400"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <ApplicationTable
+            applications={visible}
+            resetKey={`${filter}|${query}`}
+            onStatusChange={changeStatus}
+            onEdit={startEdit}
+            onDelete={handleDelete}
+            deleteDisabled={pending}
+          />
         )}
       </section>
 

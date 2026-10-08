@@ -46,7 +46,7 @@ test("updates after adding and moving an application", async ({ page, createUser
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Board" }).click();
   await page.getByRole("button", { name: "list", exact: true }).click();
   await page
-    .getByRole("listitem")
+    .getByRole("row")
     .filter({ hasText: "Hooli" })
     .getByLabel("Status")
     .selectOption("Interview");
