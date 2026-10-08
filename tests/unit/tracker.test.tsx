@@ -264,7 +264,7 @@ describe("Fill from link", () => {
     await user.type(screen.getByLabelText("Job posting link"), link);
     await user.click(screen.getByRole("button", { name: "Fill from link" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Filled from the job posting");
+    expect(await within(dialog()).findByRole("status")).toHaveTextContent("Filled from the job posting");
     expect(fetchJobPosting).toHaveBeenCalledWith(link);
     expect(screen.getByLabelText(/Company/)).toHaveValue("My own name for it");
     expect(screen.getByLabelText(/Role/)).toHaveValue("Front End Engineer");
@@ -283,7 +283,7 @@ describe("Fill from link", () => {
     await user.type(screen.getByLabelText("Job posting link"), "https://www.linkedin.com/jobs/view/1");
     await user.click(screen.getByRole("button", { name: "Fill from link" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
+    expect(await within(dialog()).findByRole("status")).toHaveTextContent(
       "Couldn't read this page. Fill in the details manually.",
     );
     expect(screen.getByLabelText(/Company/)).toHaveValue("");
@@ -298,6 +298,6 @@ describe("Fill from link", () => {
     await user.type(screen.getByLabelText("Job posting link"), "jobs.example.com/123");
     await user.click(screen.getByRole("button", { name: "Fill from link" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("starting with https://");
+    expect(await within(dialog()).findByRole("status")).toHaveTextContent("starting with https://");
   });
 });
