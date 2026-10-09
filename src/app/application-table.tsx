@@ -73,11 +73,12 @@ export default function ApplicationTable({
   deleteDisabled: boolean;
 }) {
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORT);
+  const [pages, setPages] = useState(1);
   const [bodyRef, pageSize] = useScreenFit<HTMLTableSectionElement>({
     fallback: TABLE_PAGE_SIZE,
     isEmpty: applications.length === 0,
+    expanded: pages > 1,
   });
-  const [pages, setPages] = useState(1);
 
   // Back to the first screenful when search or the filter changes. Done
   // during render rather than in an effect, so the old rows never paint

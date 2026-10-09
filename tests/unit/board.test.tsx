@@ -60,6 +60,7 @@ describe("Board columns", () => {
 describe("Board columns on a real screen", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    Reflect.deleteProperty(document.documentElement, "scrollHeight");
   });
 
   it("shows as many cards as fit on screen, then a screenful more per click", async () => {
@@ -107,5 +108,29 @@ describe("Board columns on a real screen", () => {
     });
     const column = renderBoard();
     expect(within(column).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("shows one fewer card while the page would still scroll", async () => {
+    // The estimate says 3 cards fit (as in the first test), but there is more
+    // below the board than the 88px reserve: the page is 200px taller than
+    // the cards. 3 cards: 300 + 3 * 108 + 200 = 824 > 768, so it drops to 2
+    // (716). After "Show more" the page may scroll, so nothing shrinks.
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      return (
+        this.tagName === "LI" ? { top: 0, height: 100, bottom: 100 } : { top: 300, height: 0, bottom: 0 }
+      ) as DOMRect;
+    });
+    Object.defineProperty(document.documentElement, "scrollHeight", {
+      configurable: true,
+      get: () => 300 + document.querySelectorAll("li").length * 108 + 200,
+    });
+    const user = userEvent.setup();
+    const column = renderBoard();
+
+    expect(within(column).getAllByRole("listitem")).toHaveLength(2);
+    await user.click(within(column).getByRole("button", { name: /Show 2 more/ }));
+    expect(within(column).getAllByRole("listitem")).toHaveLength(4);
   });
 });

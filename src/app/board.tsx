@@ -52,6 +52,20 @@ const columnKeyboardCoordinates: KeyboardCoordinateGetter = (
 // "Show more" button. This is the count before the screen is measured.
 export const COLUMN_PAGE_SIZE = 10;
 
+// Columns stretch to the tallest one, so only the column whose own content
+// reaches the bottom makes the page scroll; only that one should shrink.
+function isTallestColumn(list: HTMLUListElement) {
+  const column = list.parentElement;
+  const last = column?.lastElementChild;
+  if (!column || !last) return true;
+  const style = getComputedStyle(column);
+  const contentBottom =
+    last.getBoundingClientRect().bottom +
+    (parseFloat(style.paddingBottom) || 0) +
+    (parseFloat(style.borderBottomWidth) || 0);
+  return contentBottom >= column.getBoundingClientRect().bottom - 1;
+}
+
 type CardActions = {
   onEdit: (app: Application) => void;
   onDelete: (app: Application) => void;
@@ -166,12 +180,14 @@ function Column({
   pinnedId: string | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  const [pages, setPages] = useState(1);
   const [listRef, pageSize] = useScreenFit<HTMLUListElement>({
     fallback: COLUMN_PAGE_SIZE,
     gap: 8, // gap-2 between cards
     isEmpty: applications.length === 0,
+    expanded: pages > 1,
+    definesPageBottom: isTallestColumn,
   });
-  const [pages, setPages] = useState(1);
   const shown = applications.filter(
     (app, index) => index < pageSize * pages || app.id === pinnedId,
   );
